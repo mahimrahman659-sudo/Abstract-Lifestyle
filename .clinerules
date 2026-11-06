@@ -1,0 +1,17 @@
+# Permanent Project Rules
+
+## Stack
+- Next.js (App Router) + TypeScript (strict) + Tailwind CSS in /client
+- Node.js + Express + TypeScript + MongoDB (Mongoose) in /server
+
+## Rules
+- Inspect only files relevant to the current task. Never scan the whole project.
+- Make targeted edits. Never rewrite whole files unless asked.
+- Do not add dependencies without asking me first.
+- No `any` types. Validate all API input with Zod.
+- Never hardcode secrets; use environment variables and keep .env.example updated.
+- Express structure: routes → controllers → services → models. Business logic lives only in /server.
+- Next.js calls the Express API; do not duplicate backend logic in Next.js route handlers.
+- Handle loading, error and empty states in every UI.
+- After each task, run type-check and lint, then report: changed files, what was done, and anything unfinished.
+- Keep replies short. No long explanations unless I ask.

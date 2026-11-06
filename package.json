@@ -1,0 +1,13 @@
+{
+  "name": "abstract-lifestyle",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Abstract Lifestyle — e-commerce storefront (client) and API (server)",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:client": "npm --prefix client run dev",
+    "dev:server": "npm --prefix server run dev",
+    "type-check": "npm --prefix client run type-check && npm --prefix server run type-check",
+    "lint": "npm --prefix client run lint && npm --prefix server run lint"
+  }
+}

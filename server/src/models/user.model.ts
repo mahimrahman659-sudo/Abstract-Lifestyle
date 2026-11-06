@@ -1,0 +1,68 @@
+import { Schema, model, type HydratedDocument, type Types } from 'mongoose';
+
+export type UserRole = 'customer' | 'admin';
+
+export interface Address {
+  _id?: Types.ObjectId;
+  label?: string;
+  fullName: string;
+  phone: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state?: string;
+  postalCode?: string;
+  country: string;
+  isDefault: boolean;
+}
+
+export interface User {
+  email: string;
+  passwordHash: string;
+  name: string;
+  role: UserRole;
+  addresses: Address[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type UserDocument = HydratedDocument<User>;
+
+const addressSchema = new Schema<Address>(
+  {
+    label: { type: String, trim: true },
+    fullName: { type: String, required: true, trim: true },
+    phone: { type: String, required: true, trim: true },
+    line1: { type: String, required: true, trim: true },
+    line2: { type: String, trim: true },
+    city: { type: String, required: true, trim: true },
+    state: { type: String, trim: true },
+    postalCode: { type: String, trim: true },
+    country: { type: String, required: true, trim: true },
+    isDefault: { type: Boolean, default: false },
+  },
+  { _id: true },
+);
+
+const userSchema = new Schema<User>(
+  {
+    email: { type: String, required: true, lowercase: true, trim: true },
+    passwordHash: { type: String, required: true },
+    name: { type: String, required: true, trim: true },
+    role: { type: String, enum: ['customer', 'admin'], default: 'customer' },
+    addresses: { type: [addressSchema], default: [] },
+  },
+  { timestamps: true },
+);
+
+userSchema.index({ email: 1 }, { unique: true });
+
+// Safety net: never serialize the password hash.
+userSchema.set('toJSON', {
+  transform: (_doc, ret) => {
+    (ret as { passwordHash?: string }).passwordHash = undefined;
+    return ret;
+  },
+});
+
+export const UserModel = model<User>('User', userSchema);

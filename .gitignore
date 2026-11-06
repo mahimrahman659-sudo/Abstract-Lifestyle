@@ -1,0 +1,33 @@
+# Dependencies
+node_modules
+
+# Next.js build output
+.next
+
+# Build outputs
+dist
+build
+
+# Test coverage
+coverage
+
+# Git
+.git
+
+# Logs
+*.log
+
+# Lock file
+package-lock.json
+
+# Env files — keep examples tracked
+.env
+.env.*
+!.env.example
+
+# Server uploads (user content) — keep the folder
+/server/uploads/*
+!/server/uploads/.gitkeep
+
+# TypeScript incremental build info
+*.tsbuildinfo

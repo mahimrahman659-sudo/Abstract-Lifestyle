@@ -1,0 +1,18 @@
+import { Router } from 'express';
+import { adminRouter } from './admin.routes.js';
+import { authRouter } from './auth.routes.js';
+import { categoryRouter } from './category.routes.js';
+import { healthRouter } from './health.routes.js';
+import { productRouter } from './product.routes.js';
+import { userRouter } from './user.routes.js';
+
+export const apiRouter: Router = Router();
+
+apiRouter.use(healthRouter);
+apiRouter.use('/auth', authRouter);
+apiRouter.use('/categories', categoryRouter);
+apiRouter.use('/products', productRouter);
+apiRouter.use('/users', userRouter);
+apiRouter.use('/admin', adminRouter);
+
+
