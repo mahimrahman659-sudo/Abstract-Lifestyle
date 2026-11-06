@@ -8,6 +8,7 @@ export interface CartItem {
 export interface Cart {
   user: Types.ObjectId;
   items: CartItem[];
+  checkoutInProgress: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,6 +27,8 @@ const cartSchema = new Schema<Cart>(
   {
     user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     items: { type: [cartItemSchema], default: [] },
+    // Guards against concurrent checkout (double submit) for the same cart.
+    checkoutInProgress: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

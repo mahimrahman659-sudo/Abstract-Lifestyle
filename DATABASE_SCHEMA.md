@@ -72,6 +72,7 @@ Every product has **≥ 1 variant**; products without options get one "default" 
 |---|---|---|
 | user | ObjectId → users | required, unique |
 | items | { variant → variants, quantity (int ≥ 1) }[] | |
+| checkoutInProgress | boolean | default false; atomic claim guards against concurrent checkout (double submit) |
 
 Guest carts live in client localStorage only; `POST /api/cart/merge` folds them into the server cart on login/register.
 
@@ -97,7 +98,7 @@ OrderItem subdoc (purchase-time snapshots): `product`, `variant` (refs), `name` 
 
 **Indexes:** `{ orderNumber: 1 }` unique; `{ user: 1, createdAt: -1 }`; `{ status: 1, createdAt: -1 }`.
 
-**Status transitions (enforced server-side):** pending → processing → shipped → delivered; pending | processing → cancelled. No backward jumps; delivered/cancelled are terminal.
+**Status transitions (enforced server-side):** pending → processing → shipped → delivered; pending | processing → cancelled. No backward jumps; delivered/cancelled are terminal. Customer self-cancel is only allowed from `pending` (atomic transition — stock restored exactly once, double-cancel safe); admin cancels from pending|processing.
 
 ## Stock integrity (standalone MongoDB — no multi-doc transactions)
 - **Order create — atomic conditional update per variant:** `Variant.findOneAndUpdate({ _id, stock: { $gte: quantity } }, { $inc: { stock: -quantity } })`. If a later line item fails its condition → **compensating rollback**: `$inc` back all already-decremented variants → return 409. Totals always computed server-side from DB prices.

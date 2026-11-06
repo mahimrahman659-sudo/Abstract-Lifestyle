@@ -50,12 +50,12 @@ Cart notes: prices/stock are always recomputed from the DB (`unitPrice = variant
 ## Orders (customer)
 | Endpoint | Request | Response |
 |---|---|---|
-| POST /orders | `{ shippingAddressId }` OR `{ shippingAddress: {...} }`, `paymentMethod: 'cod'` | 201 `{ order }`; 409 on insufficient stock |
-| GET /orders | `?page&limit` | 200 list envelope (own orders) |
+| POST /orders | `{ shippingAddressId }` OR `{ shippingAddress: {...} }`, `paymentMethod: 'cod'` | 201 `{ order }`; 409 on insufficient stock / empty cart / in-progress checkout |
+| GET /orders | `?page&limit` | 200 list envelope (own orders, newest first) |
 | GET /orders/:id | — | 200 `{ order }` (own or admin) |
-| POST /orders/:id/cancel | — | 200 `{ order }` — pending/processing only; restores stock |
+| POST /orders/:id/cancel | — | 200 `{ order }` — customer cancel only from `pending`; restores stock exactly once (double-cancel safe); 409 otherwise |
 
-Order JSON: `{ id, orderNumber, status, paymentMethod, paymentStatus, items[], shippingAddress, subtotal, shippingFee, total, statusHistory, createdAt }`.
+Order JSON: `{ id, orderNumber, status, paymentMethod, paymentStatus, items[], shippingAddress, subtotal, shippingFee, total, statusHistory, createdAt }`. `items[]` = purchase-time snapshots `{ product, variant, name, sku, size, color, image, unitPrice, quantity, lineTotal }`. Checkout re-validates and re-prices everything from the DB (never accepts client items/prices); stock is decremented per line with atomic conditional updates and rolled back on any failure; the cart is cleared only after the order is saved; concurrent checkouts on the same cart are rejected with 409.
 
 ## Admin (admin)
 | Endpoint | Request | Response |
