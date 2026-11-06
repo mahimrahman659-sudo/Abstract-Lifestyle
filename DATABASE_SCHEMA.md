@@ -45,7 +45,7 @@ Products attach to a subcategory (or a root category when it has no children).
 | category | ObjectId → categories | required |
 | basePrice | integer | poisha (1/100 BDT); required |
 | images | string[] | URL paths (`/uploads/...`) |
-| status | 'draft' \| 'active' | default 'draft' |
+| status | 'draft' \| 'active' \| 'archived' | default 'draft' |
 
 Effective variant price = `variant.price ?? product.basePrice` (computed at service layer).
 
@@ -72,7 +72,7 @@ Every product has **≥ 1 variant**; products without options get one "default" 
 |---|---|---|
 | user | ObjectId → users | required, unique |
 | items | { variant → variants, quantity (int ≥ 1) }[] | |
-| checkoutInProgress | boolean | default false; atomic claim guards against concurrent checkout (double submit) |
+| checkoutInProgress | Date \| null | timestamp of the active checkout claim; claims older than 60s are stale and re-claimable (crash-safe) |
 
 Guest carts live in client localStorage only; `POST /api/cart/merge` folds them into the server cart on login/register.
 

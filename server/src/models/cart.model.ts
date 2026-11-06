@@ -8,7 +8,8 @@ export interface CartItem {
 export interface Cart {
   user: Types.ObjectId;
   items: CartItem[];
-  checkoutInProgress: boolean;
+  /** Timestamp of an active checkout claim; claims older than 60s are stale. */
+  checkoutInProgress: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -28,7 +29,8 @@ const cartSchema = new Schema<Cart>(
     user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     items: { type: [cartItemSchema], default: [] },
     // Guards against concurrent checkout (double submit) for the same cart.
-    checkoutInProgress: { type: Boolean, default: false },
+    // A claim older than CHECKOUT_CLAIM_STALE_MS is treated as crashed/stale.
+    checkoutInProgress: { type: Date, default: null },
   },
   { timestamps: true },
 );

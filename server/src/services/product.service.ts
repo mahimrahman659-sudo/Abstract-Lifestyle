@@ -4,6 +4,7 @@ import { CategoryModel } from '../models/category.model.js';
 import { ProductModel } from '../models/product.model.js';
 import { VariantModel } from '../models/variant.model.js';
 import type { ProductListQuery } from '../schemas/product.schema.js';
+import { isInStock, isLowStock } from '../utils/stock.js';
 
 export interface ProductCardCategory {
   id: string;
@@ -241,7 +242,7 @@ export const listProducts = async (query: ProductListQuery): Promise<ProductList
       priceTo: row.priceTo ?? row.basePrice,
       sizes: row.sizes,
       colors: row.colors,
-      inStock: row.totalStock > 0,
+      inStock: isInStock(row.totalStock),
     })),
     page: query.page,
     limit: query.limit,
@@ -302,8 +303,8 @@ export const getProductBySlug = async (slug: string): Promise<ProductDetail> => 
       color: variant.color,
       price: variant.price ?? product.basePrice,
       stock: variant.stock,
-      inStock: variant.stock > 0,
-      lowStock: variant.stock > 0 && variant.stock <= variant.lowStockThreshold,
+      inStock: isInStock(variant.stock),
+      lowStock: isLowStock(variant.stock, variant.lowStockThreshold),
       images: variant.images,
     })),
     sizeGuideKey,

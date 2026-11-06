@@ -1,4 +1,5 @@
 import { Schema, model, type Types } from 'mongoose';
+import { LOW_STOCK_THRESHOLD_DEFAULT } from '../utils/stock.js';
 
 export interface Variant {
   product: Types.ObjectId;
@@ -21,7 +22,7 @@ const variantSchema = new Schema<Variant>(
     color: { type: String, default: null, trim: true },
     price: { type: Number, default: null, min: 0 },
     stock: { type: Number, required: true, min: 0, default: 0 },
-    lowStockThreshold: { type: Number, default: 5, min: 0 },
+    lowStockThreshold: { type: Number, default: LOW_STOCK_THRESHOLD_DEFAULT, min: 0 },
     images: { type: [String], default: [] },
   },
   { timestamps: true },

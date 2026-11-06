@@ -60,23 +60,24 @@ Order JSON: `{ id, orderNumber, status, paymentMethod, paymentStatus, items[], s
 ## Admin (admin)
 | Endpoint | Request | Response |
 |---|---|---|
-| POST /admin/categories | Category fields | 201 `{ category }` |
+| POST /admin/categories | Category fields | 201 `{ category }` — slug generated from name (unique) |
 | PATCH /admin/categories/:id | partial | 200 `{ category }` |
-| DELETE /admin/categories/:id | — | 204 (409 if products attached) |
-| POST /admin/products | `{ name, description, category, basePrice, images[], status }` | 201 `{ product }` |
+| DELETE /admin/categories/:id | — | 204 (409 if it has subcategories or products) |
+| POST /admin/products | `{ name, description, category, basePrice, images[], status }` | 201 `{ product }` — slug generated from name (unique) |
 | PATCH /admin/products/:id | partial | 200 `{ product }` |
-| DELETE /admin/products/:id | — | 204 |
-| POST /admin/products/:id/variants | `{ sku, size?, color?, price?, stock, lowStockThreshold? }` | 201 `{ variant }` |
-| PATCH /admin/variants/:id | partial | 200 `{ variant }` |
-| DELETE /admin/variants/:id | — | 204 |
-| GET /admin/variants | `?lowStock=true&page&limit` | 200 list envelope (stock + product refs; low-stock badge when stock ≤ threshold) |
-| POST /admin/uploads | multipart `images[]` (jpeg/png/webp, ≤ 5 MB each) | 201 `{ urls: [] }` |
+| DELETE /admin/products/:id | — | 204 hard delete; **200 `{ product, archived: true }` when referenced by orders** (archived, not deleted) |
+| POST /admin/products/:id/variants | `{ sku, size?, color?, price?, stock, lowStockThreshold? }` | 201 `{ variant }` (409 on duplicate SKU or duplicate size/color) |
+| PATCH /admin/variants/:id | partial | 200 `{ variant }` — stock set with `$set`, non-negative integers only |
+| DELETE /admin/variants/:id | — | 204 (409 if it is the product's last variant) |
+| GET /admin/variants | `?lowStock=true&page&limit` | 200 list envelope (variant + product ref + `inStock`/`lowStock` flags) |
+| POST /admin/uploads | multipart `images[]` (jpeg/png/webp, ≤ 5 MB each, max 10) | 201 `{ urls: [] }` — content-verified (magic bytes), random server-side filenames |
 | GET /admin/orders | `?status&page&limit` | 200 list envelope (all orders) |
+| GET /admin/orders/:id | — | 200 `{ order }` (any user's order) |
 | PATCH /admin/orders/:id/status | `{ status }` | 200 `{ order }` |
 | GET /admin/customers | `?search&page&limit` | 200 list envelope |
 | GET /admin/customers/:id | — | 200 `{ user, recentOrders[] }` |
 
-Status updates enforce the transition rules from DATABASE_SCHEMA.md; → `delivered` sets `paymentStatus: 'paid'` (COD); → `cancelled` restores stock once.
+Status updates enforce allowed transitions only: **pending → processing → shipped → delivered**; **cancelled from pending or processing**; anything else → 409. → `delivered` sets `paymentStatus: 'paid'` (COD); → `cancelled` restores stock exactly once (atomic transition + `stockRestored` guard; already-cancelled orders never restore again). Every change is appended to `statusHistory` (with the admin's id).
 
 ## Notes
 - All inputs Zod-validated; unknown fields stripped (no mass assignment).

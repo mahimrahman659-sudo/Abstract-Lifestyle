@@ -53,6 +53,21 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     }
   }
 
+  // Upload errors raised by middleware (multer: size limit etc).
+  if (typeof err === 'object' && err !== null && 'code' in err) {
+    const code = (err as { code?: unknown }).code;
+    if (typeof code === 'string' && code.startsWith('LIMIT_')) {
+      const message = err instanceof Error ? err.message : 'Invalid upload';
+      res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: code === 'LIMIT_FILE_SIZE' ? 'File exceeds the 5 MB limit' : message,
+        },
+      });
+      return;
+    }
+  }
+
   console.error(err);
   res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Internal server error' } });
 };

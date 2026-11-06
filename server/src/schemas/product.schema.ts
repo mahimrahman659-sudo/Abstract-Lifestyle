@@ -7,10 +7,16 @@ export const createProductSchema = z.object({
   category: objectIdSchema,
   basePrice: z.number().int().min(0),
   images: z.array(z.string().trim().max(300)).default([]),
-  status: z.enum(['draft', 'active']).default('draft'),
+  status: z.enum(['draft', 'active', 'archived']).default('draft'),
 });
 
-export const updateProductSchema = createProductSchema.partial();
+// Defaults are stripped before .partial() so PATCHes never re-inject them.
+export const updateProductSchema = createProductSchema
+  .extend({
+    images: z.array(z.string().trim().max(300)).optional(),
+    status: z.enum(['draft', 'active', 'archived']).optional(),
+  })
+  .partial();
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;

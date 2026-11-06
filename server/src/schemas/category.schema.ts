@@ -9,7 +9,10 @@ export const createCategorySchema = z.object({
   sortOrder: z.number().int().min(0).default(0),
 });
 
-export const updateCategorySchema = createCategorySchema.partial();
+// Defaults are stripped before .partial() so PATCHes never re-inject them.
+export const updateCategorySchema = createCategorySchema
+  .extend({ sortOrder: z.number().int().min(0).optional() })
+  .partial();
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;

@@ -51,13 +51,16 @@ export interface OrderListResult {
 
 const ORDER_NUMBER_ATTEMPTS = 3;
 
+/** A checkout claim older than this is considered stale (crashed request) and can be re-claimed. */
+const CHECKOUT_CLAIM_STALE_MS = 60_000;
+
 const isDuplicateKeyError = (error: unknown): boolean =>
   typeof error === 'object' &&
   error !== null &&
   'code' in error &&
   (error as { code?: unknown }).code === 11000;
 
-const toOrderDto = (order: OrderDocument): OrderDto => ({
+export const toOrderDto = (order: OrderDocument): OrderDto => ({
   id: order._id.toString(),
   orderNumber: order.orderNumber,
   status: order.status,
@@ -106,7 +109,7 @@ const resolveShippingAddress = (
   return { fullName, phone, line1, line2, city, state, postalCode, country };
 };
 
-const restoreStock = async (
+export const restoreStock = async (
   decrements: Array<{ variantId: Types.ObjectId; quantity: number }>,
 ): Promise<void> => {
   for (const entry of decrements) {
@@ -169,10 +172,16 @@ export const createOrder = async (
     throw new AppError(409, 'CONFLICT', 'Cart is empty');
   }
 
-  // Double-submit guard: atomically claim checkout for this cart.
+  // Double-submit guard: atomically claim checkout for this cart. A claim that
+  // is older than CHECKOUT_CLAIM_STALE_MS counts as stale (crashed request).
+  const claimTime = new Date();
+  const staleCutoff = new Date(claimTime.getTime() - CHECKOUT_CLAIM_STALE_MS);
   const claimed = await CartModel.findOneAndUpdate(
-    { _id: cart._id, checkoutInProgress: { $ne: true } },
-    { $set: { checkoutInProgress: true } },
+    {
+      _id: cart._id,
+      $or: [{ checkoutInProgress: null }, { checkoutInProgress: { $lt: staleCutoff } }],
+    },
+    { $set: { checkoutInProgress: claimTime } },
     { returnDocument: 'after' },
   ).exec();
   if (!claimed) {
@@ -243,9 +252,11 @@ export const createOrder = async (
 
     return toOrderDto(order);
   } finally {
+    // Release only our own claim (matched by timestamp) so a stale-claim
+    // takeover can never be cleared by the original crashed request.
     await CartModel.updateOne(
-      { _id: cart._id },
-      { $set: { checkoutInProgress: false } },
+      { _id: cart._id, checkoutInProgress: claimTime },
+      { $set: { checkoutInProgress: null } },
     ).exec();
   }
 };

@@ -1,6 +1,6 @@
 import { Schema, model, type Types } from 'mongoose';
 
-export type ProductStatus = 'draft' | 'active';
+export type ProductStatus = 'draft' | 'active' | 'archived';
 
 export interface Product {
   name: string;
@@ -22,7 +22,7 @@ const productSchema = new Schema<Product>(
     category: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
     basePrice: { type: Number, required: true, min: 0 },
     images: { type: [String], default: [] },
-    status: { type: String, enum: ['draft', 'active'], default: 'draft' },
+    status: { type: String, enum: ['draft', 'active', 'archived'], default: 'draft' },
   },
   { timestamps: true },
 );
