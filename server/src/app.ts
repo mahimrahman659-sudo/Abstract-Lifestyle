@@ -11,6 +11,12 @@ import { healthRouter } from './routes/health.routes.js';
 export const createApp = (): express.Express => {
   const app = express();
 
+  // Honour X-Forwarded-* headers only when explicitly enabled (reverse proxy / load balancer).
+  if (env.TRUST_PROXY) {
+    const numeric = Number(env.TRUST_PROXY);
+    app.set('trust proxy', Number.isNaN(numeric) ? env.TRUST_PROXY : numeric);
+  }
+
   app.use(helmet());
   app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
   app.use(express.json());

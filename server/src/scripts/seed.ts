@@ -86,6 +86,9 @@ const upsertVariant = async (seed: VariantSeed): Promise<void> => {
 };
 
 const seed = async (): Promise<void> => {
+  // `--admin-only` seeds the admin user + category trees and skips the demo
+  // products/variants (use this for production databases).
+  const adminOnly = process.argv.includes('--admin-only');
   await connectDB();
 
   // 1. Admin user (credentials from env — see .env.example)
@@ -105,7 +108,8 @@ const seed = async (): Promise<void> => {
   const accessoriesId = await upsertCategory({ name: 'Accessories', parentId: lifestyleId });
   const bagsId = await upsertCategory({ name: 'Bags', parentId: lifestyleId });
 
-  // 3. Sample products (prices in poisha: 100 poisha = 1 BDT)
+  if (!adminOnly) {
+    // 3. Sample products (prices in poisha: 100 poisha = 1 BDT)
   const teeId = await upsertProduct({
     name: 'Everyday Heavyweight T-Shirt',
     description: 'Thick 240gsm cotton tee with a relaxed fit. A daily staple.',
@@ -153,6 +157,7 @@ const seed = async (): Promise<void> => {
 
   await upsertVariant({ productId: toteId, sku: 'AL-BAG-01', size: null, color: null, stock: 40 });
   await upsertVariant({ productId: bottleId, sku: 'AL-BTL-01', size: null, color: null, stock: 35 });
+  }
 
   // 5. Summary
   const [users, categories, products, variants] = await Promise.all([
@@ -162,11 +167,13 @@ const seed = async (): Promise<void> => {
     VariantModel.countDocuments(),
   ]);
 
-  console.log('Seed complete:');
+  console.log(adminOnly ? 'Seed complete (admin + categories only):' : 'Seed complete:');
   console.log(`  users: ${users}`);
   console.log(`  categories: ${categories}`);
-  console.log(`  products: ${products}`);
-  console.log(`  variants: ${variants}`);
+  if (!adminOnly) {
+    console.log(`  products: ${products}`);
+    console.log(`  variants: ${variants}`);
+  }
 
   await disconnectDB();
 };
