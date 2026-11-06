@@ -18,7 +18,10 @@ export interface Address {
 
 export interface User {
   email: string;
-  passwordHash: string;
+  /** bcryptjs hash — absent for Google-created accounts (no password). */
+  passwordHash?: string;
+  /** Google Identity Services subject id — set on Google sign-in/link. */
+  googleId?: string;
   name: string;
   role: UserRole;
   addresses: Address[];
@@ -47,7 +50,8 @@ const addressSchema = new Schema<Address>(
 const userSchema = new Schema<User>(
   {
     email: { type: String, required: true, lowercase: true, trim: true },
-    passwordHash: { type: String, required: true },
+    passwordHash: { type: String },
+    googleId: { type: String },
     name: { type: String, required: true, trim: true },
     role: { type: String, enum: ['customer', 'admin'], default: 'customer' },
     addresses: { type: [addressSchema], default: [] },
@@ -56,11 +60,15 @@ const userSchema = new Schema<User>(
 );
 
 userSchema.index({ email: 1 }, { unique: true });
+// One Google account maps to at most one user; sparse so password-only users
+// (and legacy rows) are unaffected.
+userSchema.index({ googleId: 1 }, { unique: true, sparse: true });
 
-// Safety net: never serialize the password hash.
+// Safety net: never serialize credentials or the Google subject id.
 userSchema.set('toJSON', {
   transform: (_doc, ret) => {
     (ret as { passwordHash?: string }).passwordHash = undefined;
+    (ret as { googleId?: string }).googleId = undefined;
     return ret;
   },
 });

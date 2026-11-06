@@ -14,6 +14,11 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+/** Google Identity Services ID-token credential (a JWT — bounded length). */
+export const googleAuthSchema = z.object({
+  credential: z.string().trim().min(10).max(4096),
+});
+
 export const addressSchema = z.object({
   label: z.string().trim().max(30).optional(),
   fullName: z.string().trim().min(1).max(100),
@@ -29,6 +34,7 @@ export const addressSchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type GoogleAuthInput = z.infer<typeof googleAuthSchema>;
 export type AddressInput = z.infer<typeof addressSchema>;
 
 export const updateProfileSchema = z.object({

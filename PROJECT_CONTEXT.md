@@ -83,7 +83,7 @@ Business logic lives only in /server. Next.js never duplicates backend logic; it
 ## 7. Dependencies (approved 2026-11-06 — nothing else without asking)
 | Where | Packages | Purpose |
 |---|---|---|
-| server | express, mongoose, zod, jsonwebtoken, bcryptjs, cors, dotenv, multer, cookie-parser, express-rate-limit, helmet, cloudinary | runtime |
+| server | express, mongoose, zod, jsonwebtoken, bcryptjs, cors, dotenv, multer, cookie-parser, express-rate-limit, helmet, cloudinary, google-auth-library | runtime |
 | server | typescript, tsx, @types/*, eslint | dev |
 | client | next, react, react-dom, typescript, tailwindcss, eslint | via create-next-app |
 | not approved | helmet or anything else | ask first |

@@ -10,7 +10,7 @@ export interface UserDto {
   addresses: Address[];
 }
 
-/** Public user shape — never includes passwordHash. */
+/** Public user shape — never includes passwordHash or googleId. */
 export const toUserDto = (user: UserDocument): UserDto => ({
   id: user._id.toString(),
   email: user.email,

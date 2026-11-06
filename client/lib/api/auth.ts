@@ -1,4 +1,4 @@
-import type { LoginPayload, RegisterPayload, UserResponse } from '../types';
+import type { GoogleLoginPayload, LoginPayload, RegisterPayload, UserResponse } from '../types';
 import { apiFetch } from './client';
 
 export const authApi = {
@@ -7,5 +7,7 @@ export const authApi = {
     apiFetch<UserResponse>('/auth/login', { method: 'POST', body: payload }),
   register: (payload: RegisterPayload) =>
     apiFetch<UserResponse>('/auth/register', { method: 'POST', body: payload }),
+  loginWithGoogle: (payload: GoogleLoginPayload) =>
+    apiFetch<UserResponse>('/auth/google', { method: 'POST', body: payload }),
   logout: () => apiFetch<void>('/auth/logout', { method: 'POST' }),
 };

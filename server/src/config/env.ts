@@ -28,6 +28,19 @@ const envSchema = z
     CLOUDINARY_CLOUD_NAME: z.string().trim().default(''),
     CLOUDINARY_API_KEY: z.string().trim().default(''),
     CLOUDINARY_API_SECRET: z.string().trim().default(''),
+    /**
+     * Google Identity Services client id (public — it is also shipped to the
+     * browser as NEXT_PUBLIC_GOOGLE_CLIENT_ID). Required in production.
+     */
+    GOOGLE_CLIENT_ID: z.string().trim().default(''),
+    /**
+     * DEV-ONLY test seam secret for the Google ID-token verifier. When set
+     * (and NODE_ENV is not "production") `POST /auth/google` accepts
+     * `test-seam:<base64url-json>` credentials instead of real Google tokens.
+     * Rejected outright in production (see superRefine below) and ignored by
+     * the verifier whenever NODE_ENV === "production".
+     */
+    GOOGLE_AUTH_TEST_SEAM: z.string().trim().default(''),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') {
@@ -54,6 +67,21 @@ const envSchema = z
         path: ['CLOUDINARY_CLOUD_NAME'],
         message:
           'CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET are required in production',
+      });
+    }
+    if (!value.GOOGLE_CLIENT_ID) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['GOOGLE_CLIENT_ID'],
+        message: 'GOOGLE_CLIENT_ID is required in production',
+      });
+    }
+    if (value.GOOGLE_AUTH_TEST_SEAM) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['GOOGLE_AUTH_TEST_SEAM'],
+        message:
+          'GOOGLE_AUTH_TEST_SEAM is a dev-only test seam and must never be set in production',
       });
     }
     const weakAdminPassword =

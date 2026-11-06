@@ -14,6 +14,7 @@ Codes: `VALIDATION_ERROR` 400 · `UNAUTHORIZED` 401 · `FORBIDDEN` 403 · `NOT_F
 |---|---|---|---|
 | POST /auth/register | public | `{ email, password (min 8), name }` | 201 `{ user }` + `Set-Cookie: al_token` (HttpOnly, SameSite=Lax, Secure in prod) |
 | POST /auth/login | public | `{ email, password }` | 200 `{ user }` + `Set-Cookie: al_token` |
+| POST /auth/google | public | `{ credential }` (Google Identity Services ID token, max 4096 chars) | 200 `{ user }` + `Set-Cookie: al_token` |
 | POST /auth/logout | public (clears cookie even with expired token) | — | 204 — clears the `al_token` cookie |
 | GET /users/me | customer | — | 200 `{ user }` |
 | PATCH /users/me | customer | `{ name? }` | 200 `{ user }` |
@@ -22,7 +23,9 @@ Codes: `VALIDATION_ERROR` 400 · `UNAUTHORIZED` 401 · `FORBIDDEN` 403 · `NOT_F
 | PATCH /users/me/addresses/:id | customer | partial Address | 200 `{ address }` |
 | DELETE /users/me/addresses/:id | customer | — | 204 |
 
-`user` = `{ id, email, name, role, addresses }` — never includes passwordHash. Logout = `POST /auth/logout` clears the httpOnly cookie server-side (client JS cannot).
+`user` = `{ id, email, name, role, addresses }` — never includes passwordHash or googleId. Logout = `POST /auth/logout` clears the httpOnly cookie server-side (client JS cannot).
+
+**Google sign-in (`POST /auth/google`):** the `credential` is a Google Identity Services ID token, verified server-side with `google-auth-library` (`verifyIdToken`, audience = `GOOGLE_CLIENT_ID`). **Any** verification failure (bad signature, expired, wrong audience, unverified email, missing claims) returns the same generic `401 { error: { code: "UNAUTHORIZED", message: "Google sign-in failed" } }`. Only `email_verified === true` tokens are accepted. Lookup order: `googleId` match → normalized-email match (the Google account is then **linked** to the existing user — safe because the email is Google-verified; password and role are untouched) → new **customer** account is created (name/email from the token; role is always `customer`, never taken from the token or request). Successful sign-in behaves exactly like `POST /auth/login`: user DTO in the body (never a token) + the same `al_token` HttpOnly cookie. Rate-limited like the other credential endpoints (10/15 min per IP). Google-only accounts (no password) cannot use `POST /auth/login` — it fails with the same generic `Invalid email or password` error as a wrong password.
 
 ## Catalog (public)
 | Endpoint | Request | Response |

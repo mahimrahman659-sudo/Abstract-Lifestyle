@@ -13,14 +13,17 @@ MongoDB (Mongoose ODM). `_id` exposed as `id` in JSON. All collections carry `cr
 | Field | Type | Notes |
 |---|---|---|
 | email | string | required, unique, lowercase, trimmed |
-| passwordHash | string | required (bcryptjs) |
+| passwordHash | string | optional (bcryptjs) — absent for Google-created accounts; password login for such accounts always fails (timing-equalized) |
+| googleId | string | optional — Google Identity Services subject id; set on Google sign-in/account link |
 | name | string | required |
-| role | 'customer' \| 'admin' | default 'customer' |
+| role | 'customer' \| 'admin' | default 'customer' — never set from user input |
 | addresses | Address[] | embedded subdoc |
 
 Address subdoc: `_id`, `label?`, `fullName`, `phone`, `line1`, `line2?`, `city`, `state?`, `postalCode?`, `country`, `isDefault` (bool).
 
-**Indexes:** `{ email: 1 }` unique.
+**Indexes:** `{ email: 1 }` unique; `{ googleId: 1 }` unique, sparse (password-only users have no `googleId`).
+
+`toJSON` never serializes `passwordHash` or `googleId`.
 
 ## categories
 | Field | Type | Notes |

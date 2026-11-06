@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Notice } from '@/components/ui/Notice';
@@ -104,6 +105,8 @@ export function RegisterForm() {
           Create account
         </Button>
       </form>
+
+      <GoogleSignInButton />
 
       <p className="mt-6 text-sm text-muted">
         Already have an account?{' '}

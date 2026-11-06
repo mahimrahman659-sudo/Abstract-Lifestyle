@@ -14,7 +14,7 @@ export interface Address {
   isDefault: boolean;
 }
 
-/** `user` in API responses — never includes passwordHash. */
+/** `user` in API responses — never includes passwordHash or googleId. */
 export interface User {
   id: string;
   email: string;
@@ -30,6 +30,11 @@ export interface UserResponse {
 export interface LoginPayload {
   email: string;
   password: string;
+}
+
+/** Request body for POST /auth/google (Google Identity Services credential). */
+export interface GoogleLoginPayload {
+  credential: string;
 }
 
 export interface RegisterPayload {

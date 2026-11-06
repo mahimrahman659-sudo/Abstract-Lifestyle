@@ -1,7 +1,7 @@
 import type { CookieOptions, RequestHandler } from 'express';
 import { env } from '../config/env.js';
 import { AUTH_COOKIE_NAME, getAuthUser } from '../middleware/auth.js';
-import { loginUser, registerUser } from '../services/auth.service.js';
+import { loginUser, loginWithGoogle, registerUser } from '../services/auth.service.js';
 import { toUserDto } from '../services/user.service.js';
 import { AUTH_TOKEN_TTL_MS, signAuthToken } from '../utils/jwt.js';
 
@@ -22,6 +22,18 @@ export const register: RequestHandler = async (req, res) => {
 
 export const login: RequestHandler = async (req, res) => {
   const user = await loginUser(req.body);
+
+  res.cookie(AUTH_COOKIE_NAME, signAuthToken(user._id.toString(), user.role), authCookieOptions());
+  res.status(200).json({ user: toUserDto(user) });
+};
+
+/**
+ * Google sign-in/sign-up. The ID token credential is verified server-side;
+ * the response is identical to password login (user DTO + `al_token` cookie —
+ * never a token in the body).
+ */
+export const googleLogin: RequestHandler = async (req, res) => {
+  const user = await loginWithGoogle(req.body.credential);
 
   res.cookie(AUTH_COOKIE_NAME, signAuthToken(user._id.toString(), user.role), authCookieOptions());
   res.status(200).json({ user: toUserDto(user) });

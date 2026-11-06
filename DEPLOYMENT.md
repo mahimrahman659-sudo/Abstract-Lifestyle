@@ -23,6 +23,7 @@ each section before exposing the store to real customers.
 | `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name (public — appears in image URLs) |
 | `CLOUDINARY_API_KEY` | Cloudinary API key |
 | `CLOUDINARY_API_SECRET` | Cloudinary API secret — **required in production**; never logged or exposed to the client |
+| `GOOGLE_CLIENT_ID` | Google Identity Services client id (public — also shipped to the browser as `NEXT_PUBLIC_GOOGLE_CLIENT_ID`). Used to verify Google ID tokens server-side. **Required in production** |
 
 ### Client (`client/.env.local` / host env)
 
@@ -30,6 +31,7 @@ each section before exposing the store to real customers.
 |---|---|
 | `API_URL` | Internal/public origin the Next.js server uses to reach the API (e.g. `http://127.0.0.1:4000` on one host) |
 | `NEXT_PUBLIC_SITE_URL` | Public storefront origin (used by metadata, `robots.txt`, `sitemap.xml`) |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google Identity Services client id (public by design — it configures the hosted Google button) |
 
 - [ ] Every variable above is set from the host's secret manager — never committed to the repo
 - [ ] `server/.env.example` and `client/.env.example` list every variable used in code
