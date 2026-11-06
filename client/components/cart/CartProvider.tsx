@@ -61,8 +61,10 @@ const writeGuestCart = (items: GuestCartItem[]): void => {
   }
 };
 
-const clampQuantity = (quantity: number): number =>
-  Math.min(Math.max(1, Math.trunc(quantity)), MAX_LINE_QUANTITY);
+const clampQuantity = (quantity: number): number => {
+  const safe = Number.isFinite(quantity) ? quantity : 1;
+  return Math.min(Math.max(1, Math.trunc(safe)), MAX_LINE_QUANTITY);
+};
 
 export interface CartContextValue {
   /** Server-priced cart (logged-in users). Prices always come from the server. */
@@ -70,7 +72,8 @@ export interface CartContextValue {
   /** Guest cart lines (variantId + quantity only — never prices). */
   guestItems: GuestCartItem[];
   itemCount: number;
-  addItem: (variantId: string, quantity?: number) => Promise<void>;
+  /** Returns the updated server cart (logged-in) or null (guest mode). */
+  addItem: (variantId: string, quantity?: number) => Promise<CartView | null>;
   updateItem: (variantId: string, quantity: number) => Promise<void>;
   removeItem: (variantId: string) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -131,7 +134,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [user, refresh]);
 
   const addItem = useCallback(
-    async (variantId: string, quantity = 1) => {
+    async (variantId: string, quantity = 1): Promise<CartView | null> => {
       const qty = clampQuantity(quantity);
 
       if (!user) {
@@ -146,10 +149,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
           : [...current, { variantId, quantity: qty }];
         writeGuestCart(next);
         setGuestItems(next);
-        return;
+        return null;
       }
 
-      setServerCart(await cartApi.addItem(variantId, qty));
+      const cart = await cartApi.addItem(variantId, qty);
+      setServerCart(cart);
+      return cart;
     },
     [user],
   );

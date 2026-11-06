@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { CopyrightYear } from '@/components/layout/CopyrightYear';
 
 export function Footer() {
@@ -14,19 +15,19 @@ export function Footer() {
           <p className="text-sm font-semibold text-ink">Shop</p>
           <ul className="mt-3 space-y-2 text-sm text-muted">
             <li>
-              <a className="hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/products">
+              <Link className="hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/products">
                 All products
-              </a>
+              </Link>
             </li>
             <li>
-              <a className="hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/products?category=clothing">
+              <Link className="hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/products?category=clothing">
                 Clothing
-              </a>
+              </Link>
             </li>
             <li>
-              <a className="hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/products?category=lifestyle">
+              <Link className="hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/products?category=lifestyle">
                 Lifestyle
-              </a>
+              </Link>
             </li>
           </ul>
         </nav>
@@ -34,19 +35,19 @@ export function Footer() {
           <p className="text-sm font-semibold text-ink">Help</p>
           <ul className="mt-3 space-y-2 text-sm text-muted">
             <li>
-              <a className="hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/account">
+              <Link className="hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/account">
                 My account
-              </a>
+              </Link>
             </li>
             <li>
-              <a className="hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/orders">
+              <Link className="hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/orders">
                 Orders
-              </a>
+              </Link>
             </li>
             <li>
-              <a className="hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/cart">
+              <Link className="hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/cart">
                 Cart
-              </a>
+              </Link>
             </li>
           </ul>
         </nav>
