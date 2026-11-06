@@ -11,6 +11,8 @@ import {
   deleteCategoryHandler,
   deleteProductHandler,
   deleteVariantHandler,
+  getProductHandler,
+  listProductsHandler,
   listVariantsHandler,
   updateCategoryHandler,
   updateProductHandler,
@@ -34,6 +36,8 @@ adminRouter.patch('/categories/:id', validateBody(updateCategorySchema), updateC
 adminRouter.delete('/categories/:id', deleteCategoryHandler);
 
 // Products
+adminRouter.get('/products', listProductsHandler);
+adminRouter.get('/products/:id', getProductHandler);
 adminRouter.post('/products', validateBody(createProductSchema), createProductHandler);
 adminRouter.patch('/products/:id', validateBody(updateProductSchema), updateProductHandler);
 adminRouter.delete('/products/:id', deleteProductHandler);

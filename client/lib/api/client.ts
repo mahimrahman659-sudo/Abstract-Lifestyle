@@ -28,12 +28,14 @@ export interface ApiRequestOptions {
  */
 export async function apiFetch<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { method = 'GET', body, signal } = options;
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
 
   const response = await fetch(`/api${path}`, {
     method,
     credentials: 'include',
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    headers:
+      body !== undefined && !isFormData ? { 'Content-Type': 'application/json' } : undefined,
+    body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
     signal,
   });
 

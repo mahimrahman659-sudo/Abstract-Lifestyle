@@ -10,7 +10,7 @@ import type {
 } from '../schemas/category.schema.js';
 import type { CreateProductInput, UpdateProductInput } from '../schemas/product.schema.js';
 import type { CreateVariantInput, UpdateVariantInput } from '../schemas/variant.schema.js';
-import type { AdminVariantQuery } from '../schemas/admin.schema.js';
+import type { AdminProductQuery, AdminVariantQuery } from '../schemas/admin.schema.js';
 import { slugify } from '../utils/slug.js';
 import { isInStock, isLowStock } from '../utils/stock.js';
 
@@ -451,6 +451,51 @@ export const listVariants = async (
     limit: query.limit,
     total,
     totalPages: total === 0 ? 0 : Math.ceil(total / query.limit),
+  };
+};
+
+/** Admin product list: every status, optional status filter + text search. */
+export const listProducts = async (
+  query: AdminProductQuery,
+): Promise<AdminListResult<ProductAdminDto>> => {
+  const filter: Record<string, unknown> = {};
+  if (query.status) {
+    filter.status = query.status;
+  }
+  if (query.search) {
+    filter.$text = { $search: query.search };
+  }
+
+  const [products, total] = await Promise.all([
+    ProductModel.find(filter)
+      .sort({ createdAt: -1, _id: -1 })
+      .skip((query.page - 1) * query.limit)
+      .limit(query.limit)
+      .exec(),
+    ProductModel.countDocuments(filter).exec(),
+  ]);
+
+  return {
+    items: products.map(toProductDto),
+    page: query.page,
+    limit: query.limit,
+    total,
+    totalPages: total === 0 ? 0 : Math.ceil(total / query.limit),
+  };
+};
+
+/** Admin product detail: any status, with its variants (for editing). */
+export const getProductAdmin = async (
+  productId: string,
+): Promise<{ product: ProductAdminDto; variants: VariantAdminDto[] }> => {
+  const product = await loadProductOrThrow(productId);
+  const variants = await VariantModel.find({ product: product._id })
+    .sort({ size: 1, color: 1, sku: 1 })
+    .exec();
+
+  return {
+    product: toProductDto(product),
+    variants: variants.map((variant) => toVariantDto(variant, product)),
   };
 };
 

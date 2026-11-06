@@ -63,6 +63,8 @@ Order JSON: `{ id, orderNumber, status, paymentMethod, paymentStatus, items[], s
 | POST /admin/categories | Category fields | 201 `{ category }` — slug generated from name (unique) |
 | PATCH /admin/categories/:id | partial | 200 `{ category }` |
 | DELETE /admin/categories/:id | — | 204 (409 if it has subcategories or products) |
+| GET /admin/products | `?search&status&page&limit` | 200 list envelope (all statuses; `status` = draft \| active \| archived) |
+| GET /admin/products/:id | — | 200 `{ product, variants[] }` (any status — for editing) |
 | POST /admin/products | `{ name, description, category, basePrice, images[], status }` | 201 `{ product }` — slug generated from name (unique) |
 | PATCH /admin/products/:id | partial | 200 `{ product }` |
 | DELETE /admin/products/:id | — | 204 hard delete; **200 `{ product, archived: true }` when referenced by orders** (archived, not deleted) |
@@ -72,7 +74,7 @@ Order JSON: `{ id, orderNumber, status, paymentMethod, paymentStatus, items[], s
 | GET /admin/variants | `?lowStock=true&page&limit` | 200 list envelope (variant + product ref + `inStock`/`lowStock` flags) |
 | POST /admin/uploads | multipart `images[]` (jpeg/png/webp, ≤ 5 MB each, max 10) | 201 `{ urls: [] }` — content-verified (magic bytes), random server-side filenames |
 | GET /admin/orders | `?status&page&limit` | 200 list envelope (all orders) |
-| GET /admin/orders/:id | — | 200 `{ order }` (any user's order) |
+| GET /admin/orders/:id | — | 200 `{ order, customer: { id, name, email } \| null }` (any user's order) |
 | PATCH /admin/orders/:id/status | `{ status }` | 200 `{ order }` |
 | GET /admin/customers | `?search&page&limit` | 200 list envelope |
 | GET /admin/customers/:id | — | 200 `{ user, recentOrders[] }` |

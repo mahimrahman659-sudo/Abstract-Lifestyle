@@ -6,6 +6,8 @@ import {
   deleteCategory,
   deleteProduct,
   deleteVariant,
+  getProductAdmin,
+  listProducts,
   listVariants,
   updateCategory,
   updateProduct,
@@ -78,21 +80,28 @@ export const listVariantsHandler: RequestHandler = async (req, res) => {
   res.status(200).json(await listVariants(query));
 };
 
+export const listProductsHandler: RequestHandler = async (req, res) => {
+  const query = adminProductQuerySchema.parse(req.query);
+  res.status(200).json(await listProducts(query));
+};
+
+export const getProductHandler: RequestHandler = async (req, res) => {
+  const { id } = adminIdParamsSchema.parse(req.params);
+  res.status(200).json(await getProductAdmin(id));
+};
+
 import { saveImages } from '../services/upload.service.js';
-import {
-  adminListOrders,
-  adminUpdateOrderStatus,
-} from '../services/admin-order.service.js';
+import { adminGetOrder, adminListOrders, adminUpdateOrderStatus } from '../services/admin-order.service.js';
 import {
   adminGetCustomer,
   adminListCustomers,
 } from '../services/admin-customer.service.js';
-import { getOrder } from '../services/order.service.js';
 import { getAuthUser } from '../middleware/auth.js';
 import {
   adminCustomerQuerySchema,
   adminOrderQuerySchema,
   adminOrderStatusUpdateSchema,
+  adminProductQuerySchema,
 } from '../schemas/admin.schema.js';
 
 export const uploadImagesHandler: RequestHandler = async (req, res) => {
@@ -115,8 +124,7 @@ export const adminListOrdersHandler: RequestHandler = async (req, res) => {
 
 export const adminGetOrderHandler: RequestHandler = async (req, res) => {
   const { id } = adminIdParamsSchema.parse(req.params);
-  const user = getAuthUser(req);
-  res.status(200).json({ order: await getOrder(user, id) });
+  res.status(200).json(await adminGetOrder(id));
 };
 
 export const adminUpdateOrderStatusHandler: RequestHandler = async (req, res) => {

@@ -1,7 +1,7 @@
 import type { Types } from 'mongoose';
 import { AppError } from '../middleware/error-handler.js';
 import { OrderModel, type OrderStatus } from '../models/order.model.js';
-import type { UserDocument } from '../models/user.model.js';
+import { UserModel, type UserDocument } from '../models/user.model.js';
 import type { AdminOrderQuery, AdminOrderStatusUpdateInput } from '../schemas/admin.schema.js';
 import { restoreStock, toOrderDto, type OrderDto, type OrderListResult } from './order.service.js';
 
@@ -31,6 +31,33 @@ export const adminListOrders = async (query: AdminOrderQuery): Promise<OrderList
     limit: query.limit,
     total,
     totalPages: total === 0 ? 0 : Math.ceil(total / query.limit),
+  };
+};
+
+export interface AdminOrderCustomerDto {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface AdminOrderDetailDto {
+  order: OrderDto;
+  customer: AdminOrderCustomerDto | null;
+}
+
+/** Admin order detail: any order plus the customer that placed it. */
+export const adminGetOrder = async (orderId: string): Promise<AdminOrderDetailDto> => {
+  const order = await OrderModel.findById(orderId).exec();
+  if (!order) {
+    throw new AppError(404, 'NOT_FOUND', 'Order not found');
+  }
+  const user = await UserModel.findById(order.user).exec();
+
+  return {
+    order: toOrderDto(order),
+    customer: user
+      ? { id: user._id.toString(), name: user.name, email: user.email }
+      : null,
   };
 };
 
