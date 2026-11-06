@@ -37,6 +37,7 @@ export const updateProfileSchema = z.object({
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 
+// Defaults are stripped before .partial() so PATCHes never re-inject them.
 export const addressUpdateSchema = addressSchema
   .extend({ isDefault: z.boolean().optional() })
   .partial();

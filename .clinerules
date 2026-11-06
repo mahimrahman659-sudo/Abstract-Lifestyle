@@ -14,4 +14,6 @@
 - Next.js calls the Express API; do not duplicate backend logic in Next.js route handlers.
 - Handle loading, error and empty states in every UI.
 - After each task, run type-check and lint, then report: changed files, what was done, and anything unfinished.
+- Zod update schemas: never use `.partial()` on a schema containing `.default()` values. Strip defaults first (e.g. re-declare fields via `.extend({ field: schema.optional() })` or build the update schema without defaults) so partial updates can never overwrite existing values.
+- Never leave temporary test routes, harness pages, probe scripts or fixture mutations in the project — delete them and restore any data changed for testing before reporting.
 - Keep replies short. No long explanations unless I ask.
