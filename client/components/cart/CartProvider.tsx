@@ -74,7 +74,8 @@ export interface CartContextValue {
   itemCount: number;
   /** Returns the updated server cart (logged-in) or null (guest mode). */
   addItem: (variantId: string, quantity?: number) => Promise<CartView | null>;
-  updateItem: (variantId: string, quantity: number) => Promise<void>;
+  /** Returns the updated server cart (logged-in) or null (guest mode). */
+  updateItem: (variantId: string, quantity: number) => Promise<CartView | null>;
   removeItem: (variantId: string) => Promise<void>;
   clearCart: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -160,7 +161,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   );
 
   const updateItem = useCallback(
-    async (variantId: string, quantity: number) => {
+    async (variantId: string, quantity: number): Promise<CartView | null> => {
       const qty = clampQuantity(quantity);
 
       if (!user) {
@@ -169,10 +170,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
         );
         writeGuestCart(next);
         setGuestItems(next);
-        return;
+        return null;
       }
 
-      setServerCart(await cartApi.updateItem(variantId, qty));
+      const cart = await cartApi.updateItem(variantId, qty);
+      setServerCart(cart);
+      return cart;
     },
     [user],
   );

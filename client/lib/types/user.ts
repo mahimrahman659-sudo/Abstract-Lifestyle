@@ -37,3 +37,25 @@ export interface RegisterPayload {
   password: string;
   name: string;
 }
+
+/** Request body for POST /users/me/addresses (mirrors server addressSchema). */
+export interface AddressPayload {
+  label?: string;
+  fullName: string;
+  phone: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state?: string;
+  postalCode?: string;
+  country: string;
+  isDefault?: boolean;
+}
+
+export interface AddressListResponse {
+  items: Address[];
+}
+
+export interface AddressResponse {
+  address: Address;
+}

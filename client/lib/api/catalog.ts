@@ -1,4 +1,10 @@
-import type { CategoryListResponse, ListEnvelope, ProductCard, ProductSort } from '../types';
+import type {
+  CategoryListResponse,
+  ListEnvelope,
+  ProductCard,
+  ProductDetail,
+  ProductSort,
+} from '../types';
 import { apiFetch } from './client';
 
 export interface ProductListParams {
@@ -34,5 +40,7 @@ export const catalogApi = {
   getCategories: () => apiFetch<CategoryListResponse>('/categories'),
   getProducts: (params: ProductListParams = {}, signal?: AbortSignal) =>
     apiFetch<ListEnvelope<ProductCard>>(`/products${toQueryString(params)}`, { signal }),
+  getProduct: (slug: string) =>
+    apiFetch<ProductDetail>(`/products/${encodeURIComponent(slug)}`),
 };
 

@@ -1,4 +1,5 @@
 import type { HydratedDocument, Types } from 'mongoose';
+import { env } from '../config/env.js';
 import { AppError } from '../middleware/error-handler.js';
 import { CartModel, type CartDocument } from '../models/cart.model.js';
 import { ProductModel, type Product } from '../models/product.model.js';
@@ -24,6 +25,10 @@ export interface CartItemView {
 export interface CartView {
   items: CartItemView[];
   subtotal: number;
+  /** Flat fee from SHIPPING_FEE env (poisha) — server is the only source. */
+  shippingFee: number;
+  /** subtotal + shippingFee. */
+  total: number;
 }
 
 type VariantDoc = HydratedDocument<Variant>;
@@ -125,7 +130,8 @@ const buildCartView = async (cart: CartDocument): Promise<CartView> => {
     };
   });
 
-  return { items, subtotal };
+  const shippingFee = env.SHIPPING_FEE;
+  return { items, subtotal, shippingFee, total: subtotal + shippingFee };
 };
 
 export const getCart = async (userId: Types.ObjectId): Promise<CartView> => {

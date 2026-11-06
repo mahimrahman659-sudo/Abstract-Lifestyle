@@ -38,14 +38,14 @@ Variant: `{ id, sku, size, color, price (effective), stock, inStock, lowStock, i
 ## Cart (customer — server-side cart)
 | Endpoint | Request | Response |
 |---|---|---|
-| GET /cart | — | 200 `{ items: [{ variantId, product, name, sku, size, color, image, unitPrice, quantity, lineTotal, outOfStock, insufficientStock, unavailable }], subtotal }` |
+| GET /cart | — | 200 `{ items: [{ variantId, product, name, sku, size, color, image, unitPrice, quantity, lineTotal, outOfStock, insufficientStock, unavailable }], subtotal, shippingFee, total }` |
 | POST /cart/items | `{ variantId, quantity (1–20) }` | 200 cart — existing line's quantity increases, capped at available stock |
 | PATCH /cart/items/:variantId | `{ quantity (1–20) }` | 200 cart — capped at available stock |
 | DELETE /cart/items/:variantId | — | 200 cart (idempotent) |
 | DELETE /cart | — | 200 cart — removes all items |
 | POST /cart/merge | `{ items: [{ variantId, quantity }] }` | 200 cart — call after login/register with the guest localStorage cart; invalid/unavailable entries are skipped |
 
-Cart notes: prices/stock are always recomputed from the DB (`unitPrice = variant.price ?? product.basePrice`, `lineTotal = unitPrice × quantity`, `subtotal` = Σ lineTotals, integer poisha). Flags: `unavailable` = variant missing or product inactive/removed · `outOfStock` = stock 0 · `insufficientStock` = quantity &gt; stock. Quantity is an integer 1–20 per request.
+Cart notes: prices/stock are always recomputed from the DB (`unitPrice = variant.price ?? product.basePrice`, `lineTotal = unitPrice × quantity`, `subtotal` = Σ lineTotals, integer poisha). `shippingFee` = flat fee from `SHIPPING_FEE` env (poisha) and `total` = subtotal + shippingFee — the cart response is the client's only pre-order source for the shipping fee. Flags: `unavailable` = variant missing or product inactive/removed · `outOfStock` = stock 0 · `insufficientStock` = quantity &gt; stock. Quantity is an integer 1–20 per request.
 
 ## Orders (customer)
 | Endpoint | Request | Response |

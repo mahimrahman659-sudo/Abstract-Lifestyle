@@ -18,6 +18,23 @@ export interface CartItemView {
 export interface CartView {
   items: CartItemView[];
   subtotal: number;
+  /** Flat fee from SHIPPING_FEE env (poisha) — always read from the server. */
+  shippingFee: number;
+  /** subtotal + shippingFee. */
+  total: number;
+}
+
+/** Resolved display line for the guest (localStorage) cart — server catalog prices. */
+export interface GuestCartLineView {
+  variantId: string;
+  quantity: number;
+  name: string;
+  slug: string;
+  image: string | null;
+  size: string | null;
+  color: string | null;
+  unitPrice: number;
+  lineTotal: number;
 }
 
 /**
