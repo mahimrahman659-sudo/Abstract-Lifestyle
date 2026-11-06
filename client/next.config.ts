@@ -2,13 +2,25 @@ import type { NextConfig } from "next";
 
 const apiUrl = process.env.API_URL ?? "http://localhost:4000";
 
+/** Derive the allowed image host from API_URL (falls back to the dev API). */
+const apiImageSource = (() => {
+  try {
+    const parsed = new URL(apiUrl);
+    return {
+      protocol: parsed.protocol.replace(":", "") as "http" | "https",
+      hostname: parsed.hostname,
+      ...(parsed.port ? { port: parsed.port } : {}),
+    };
+  } catch {
+    return { protocol: "http" as const, hostname: "localhost", port: "4000" };
+  }
+})();
+
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: "http",
-        hostname: "localhost",
-        port: "4000",
+        ...apiImageSource,
         pathname: "/uploads/**",
       },
     ],

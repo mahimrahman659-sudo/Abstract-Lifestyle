@@ -20,6 +20,7 @@ import {
   uploadImagesHandler,
 } from '../controllers/admin.controller.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { uploadRateLimiter } from '../middleware/rate-limit.js';
 import { uploadImages } from '../middleware/upload.js';
 import { validateBody } from '../middleware/validate.js';
 import { createCategorySchema, updateCategorySchema } from '../schemas/category.schema.js';
@@ -53,7 +54,7 @@ adminRouter.patch('/variants/:id', validateBody(updateVariantSchema), updateVari
 adminRouter.delete('/variants/:id', deleteVariantHandler);
 
 // Uploads
-adminRouter.post('/uploads', uploadImages, uploadImagesHandler);
+adminRouter.post('/uploads', uploadRateLimiter, uploadImages, uploadImagesHandler);
 
 // Orders
 adminRouter.get('/orders', adminListOrdersHandler);

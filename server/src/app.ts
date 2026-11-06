@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { env } from './config/env.js';
 import { UPLOADS_DIR } from './config/paths.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
+import { requestLogger } from './middleware/request-logger.js';
 import { apiRouter } from './routes/index.js';
 import { healthRouter } from './routes/health.routes.js';
 
@@ -17,6 +18,7 @@ export const createApp = (): express.Express => {
     app.set('trust proxy', Number.isNaN(numeric) ? env.TRUST_PROXY : numeric);
   }
 
+  app.use(requestLogger);
   app.use(helmet());
   app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
   app.use(express.json());

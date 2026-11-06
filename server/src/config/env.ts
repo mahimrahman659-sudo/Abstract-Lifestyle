@@ -15,8 +15,15 @@ const envSchema = z
      * Express "trust proxy" setting, e.g. `1` behind one reverse proxy.
      * Empty (default) = disabled. Numbers are applied as numbers; other
      * values pass through as Express trust-proxy strings (e.g. "loopback").
+     * Required in production (see superRefine below).
      */
     TRUST_PROXY: z.string().trim().default(''),
+    /** Global per-IP API rate limit (requests per minute). */
+    API_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(300),
+    /** Per-user checkout limit (requests per minute). */
+    ORDER_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(30),
+    /** Per-user upload limit (requests per minute). */
+    UPLOAD_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(20),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') {
@@ -27,6 +34,14 @@ const envSchema = z
         code: 'custom',
         path: ['JWT_SECRET'],
         message: 'JWT_SECRET must be at least 32 characters in production',
+      });
+    }
+    if (!value.TRUST_PROXY) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['TRUST_PROXY'],
+        message:
+          'TRUST_PROXY must be set in production (e.g. "1" behind a single reverse proxy) so rate limiting and secure cookies see the real client IP',
       });
     }
     const weakAdminPassword =

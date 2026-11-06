@@ -16,7 +16,10 @@ each section before exposing the store to real customers.
 | `CLIENT_ORIGIN` | Exact public storefront origin (e.g. `https://shop.example.com`) — CORS is locked to it |
 | `SHIPPING_FEE` | Flat fee in poisha (integer; `0` = free shipping) |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Used by the seed script. The API refuses to start if `ADMIN_PASSWORD` is weak (12+ chars, not "change-me"/"password"/the email) |
-| `TRUST_PROXY` | `1` when running behind one reverse proxy / PaaS router, otherwise empty |
+| `TRUST_PROXY` | `1` when running behind one reverse proxy / PaaS router. **The API refuses to start in production when this is unset** |
+| `API_RATE_LIMIT_PER_MIN` | Global per-IP API limit (default 300/min) |
+| `ORDER_RATE_LIMIT_PER_MIN` | Per-user checkout limit (default 30/min) |
+| `UPLOAD_RATE_LIMIT_PER_MIN` | Per-user admin upload limit (default 20/min) |
 
 ### Client (`client/.env.local` / host env)
 
@@ -46,6 +49,10 @@ each section before exposing the store to real customers.
 
 - [ ] Cookie: `httpOnly: true`, `sameSite: 'lax'`, `secure` (automatic when `NODE_ENV=production`), 7-day TTL
 - [ ] Set `TRUST_PROXY=1` behind exactly one proxy so rate limiting and cookies see the real client IP/protocol
+      — the API **refuses to start** in production when `TRUST_PROXY` is unset
+- [ ] Rate limits are active: global per-IP baseline (`API_RATE_LIMIT_PER_MIN`, default 300/min),
+      per-user checkout (`ORDER_RATE_LIMIT_PER_MIN`, default 30/min) and per-user admin uploads
+      (`UPLOAD_RATE_LIMIT_PER_MIN`, default 20/min); auth remains 10 attempts / 15 min / IP
 - [ ] Never expose the API port publicly without TLS; keep browser traffic on the Next.js origin
       (`/api/*` and `/uploads/*` are proxied by Next.js rewrites)
 - [ ] Rotating `JWT_SECRET` signs everyone out — plan rotations accordingly
@@ -89,3 +96,13 @@ npm run seed:prod -- --admin-only   # admin + category trees only, no demo produ
 - [ ] Smoke test: browse → add to cart → register → checkout (COD) → order confirmation → cancel
 - [ ] Admin smoke test: product/variant CRUD, image upload, order status transitions
 - [ ] Type-check + lint are clean in both apps
+
+## 8. Known tradeoffs
+
+- **Stateless JWT sessions.** Tokens are signed with `JWT_SECRET` and live 7 days; there is no
+  server-side session store. `POST /auth/logout` only clears the cookie — a copied token stays valid
+  until it expires, and changing a password does not revoke existing tokens. Rotating
+  `JWT_SECRET` invalidates **all** sessions at once.
+- **Admin password rotation** is done by updating `ADMIN_PASSWORD` in the environment and re-running
+  the seed script (`npm run seed:prod -- --admin-only`); there is no in-app password-change flow yet.
+
