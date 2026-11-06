@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { CategoriesManager } from "@/components/admin/CategoriesManager";
 
 export const metadata: Metadata = {
-  title: "Categories — Admin",
+  title: "Categories",
 };
 
 export default function AdminCategoriesPage() {

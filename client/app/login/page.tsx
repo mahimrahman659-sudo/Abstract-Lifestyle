@@ -4,7 +4,7 @@ import { LoginForm } from "@/components/auth/LoginForm";
 import { Spinner } from "@/components/ui/Spinner";
 
 export const metadata: Metadata = {
-  title: "Sign in — Abstract Lifestyle",
+  title: "Sign in",
   description: "Sign in to your Abstract Lifestyle account to check out and track orders.",
 };
 

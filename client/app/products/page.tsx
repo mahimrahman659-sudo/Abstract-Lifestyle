@@ -4,9 +4,15 @@ import { ProductsView } from "@/components/catalog/ProductsView";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 export const metadata: Metadata = {
-  title: "Shop all products — Abstract Lifestyle",
+  title: "Shop all products",
   description:
     "Browse clothing and everyday lifestyle products: tees, hoodies, bags, bottles and more.",
+  openGraph: {
+    title: "Shop all products",
+    description:
+      "Browse clothing and everyday lifestyle products: tees, hoodies, bags, bottles and more.",
+    url: "/products",
+  },
 };
 
 export default function ProductsPage() {

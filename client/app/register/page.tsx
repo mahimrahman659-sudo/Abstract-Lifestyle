@@ -4,7 +4,7 @@ import { RegisterForm } from "@/components/auth/RegisterForm";
 import { Spinner } from "@/components/ui/Spinner";
 
 export const metadata: Metadata = {
-  title: "Create account — Abstract Lifestyle",
+  title: "Create account",
   description: "Create an Abstract Lifestyle account to check out and track orders.",
 };
 

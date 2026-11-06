@@ -3,7 +3,8 @@ import Link from "next/link";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 export const metadata: Metadata = {
-  title: "Page not found — Abstract Lifestyle",
+  title: "Page not found",
+  robots: { index: false },
 };
 
 export default function NotFound() {

@@ -5,7 +5,7 @@ import { CheckoutClient } from "@/components/checkout/CheckoutClient";
 import { Spinner } from "@/components/ui/Spinner";
 
 export const metadata: Metadata = {
-  title: "Checkout — Abstract Lifestyle",
+  title: "Checkout",
   description: "Choose your shipping address and place a Cash on Delivery order.",
 };
 

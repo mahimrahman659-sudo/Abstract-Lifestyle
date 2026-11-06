@@ -4,7 +4,7 @@ import { ProductEdit } from "@/components/admin/ProductEdit";
 import { Spinner } from "@/components/ui/Spinner";
 
 export const metadata: Metadata = {
-  title: "Edit product — Admin",
+  title: "Edit product",
 };
 
 export default async function AdminProductEditPage({

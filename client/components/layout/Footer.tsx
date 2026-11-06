@@ -4,7 +4,7 @@ import { CopyrightYear } from '@/components/layout/CopyrightYear';
 export function Footer() {
   return (
     <footer className="border-t border-line bg-surface">
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:grid-cols-3">
+      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <p className="text-base font-semibold text-ink">Abstract Lifestyle</p>
           <p className="mt-2 max-w-xs text-sm text-muted">
@@ -47,6 +47,31 @@ export function Footer() {
             <li>
               <Link className="hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/cart">
                 Cart
+              </Link>
+            </li>
+          </ul>
+        </nav>
+        <nav aria-label="Company">
+          <p className="text-sm font-semibold text-ink">Company</p>
+          <ul className="mt-3 space-y-2 text-sm text-muted">
+            <li>
+              <Link className="hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/about">
+                About
+              </Link>
+            </li>
+            <li>
+              <Link className="hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/contact">
+                Contact
+              </Link>
+            </li>
+            <li>
+              <Link className="hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/shipping-returns">
+                Shipping &amp; Returns
+              </Link>
+            </li>
+            <li>
+              <Link className="hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/privacy">
+                Privacy
               </Link>
             </li>
           </ul>

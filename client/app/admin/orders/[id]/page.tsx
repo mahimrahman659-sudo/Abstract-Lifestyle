@@ -4,7 +4,7 @@ import { AdminOrderDetail } from "@/components/admin/AdminOrderDetail";
 import { Spinner } from "@/components/ui/Spinner";
 
 export const metadata: Metadata = {
-  title: "Order — Admin",
+  title: "Order",
 };
 
 export default async function AdminOrderDetailPage({

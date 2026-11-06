@@ -5,7 +5,7 @@ import { OrdersHistory } from "@/components/orders/OrdersHistory";
 import { Spinner } from "@/components/ui/Spinner";
 
 export const metadata: Metadata = {
-  title: "Your orders — Abstract Lifestyle",
+  title: "Your orders",
   description: "View your order history and track order status.",
 };
 

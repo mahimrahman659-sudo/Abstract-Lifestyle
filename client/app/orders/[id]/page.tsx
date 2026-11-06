@@ -5,7 +5,7 @@ import { OrderDetailClient } from "@/components/orders/OrderDetailClient";
 import { Spinner } from "@/components/ui/Spinner";
 
 export const metadata: Metadata = {
-  title: "Order details — Abstract Lifestyle",
+  title: "Order details",
   description: "Order summary, shipping address and status.",
 };
 
