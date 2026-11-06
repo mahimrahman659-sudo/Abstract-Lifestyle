@@ -8,7 +8,12 @@ export interface Product {
   description: string;
   category: Types.ObjectId;
   basePrice: number;
-  images: string[];
+  /**
+   * Images are stored as `{ url, publicId }` objects for Cloudinary assets.
+   * Legacy documents hold plain strings (`/uploads/...`); always read through
+   * `utils/images.ts` helpers which normalize both shapes.
+   */
+  images: unknown[];
   status: ProductStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -21,7 +26,8 @@ const productSchema = new Schema<Product>(
     description: { type: String, required: true, trim: true },
     category: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
     basePrice: { type: Number, required: true, min: 0 },
-    images: { type: [String], default: [] },
+    // Mixed so legacy string URLs and new { url, publicId } assets both load.
+    images: { type: [Schema.Types.Mixed], default: [] },
     status: { type: String, enum: ['draft', 'active', 'archived'], default: 'draft' },
   },
   { timestamps: true },

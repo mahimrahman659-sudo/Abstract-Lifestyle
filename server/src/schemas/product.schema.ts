@@ -1,19 +1,27 @@
 import { z } from 'zod';
 import { objectIdSchema } from './common.schema.js';
 
+const productImageSchema = z.union([
+  z.string().trim().min(1).max(300),
+  z.object({
+    url: z.string().trim().min(1).max(300),
+    publicId: z.string().trim().max(200).nullable().optional(),
+  }),
+]);
+
 export const createProductSchema = z.object({
   name: z.string().trim().min(1).max(120),
   description: z.string().trim().min(1).max(2000),
   category: objectIdSchema,
   basePrice: z.number().int().min(0),
-  images: z.array(z.string().trim().max(300)).default([]),
+  images: z.array(productImageSchema).max(10).default([]),
   status: z.enum(['draft', 'active', 'archived']).default('draft'),
 });
 
 // Defaults are stripped before .partial() so PATCHes never re-inject them.
 export const updateProductSchema = createProductSchema
   .extend({
-    images: z.array(z.string().trim().max(300)).optional(),
+    images: z.array(productImageSchema).max(10).optional(),
     status: z.enum(['draft', 'active', 'archived']).optional(),
   })
   .partial();

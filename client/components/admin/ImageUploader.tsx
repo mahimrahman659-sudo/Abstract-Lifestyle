@@ -7,14 +7,15 @@ import { Notice, type NoticeTone } from '@/components/ui/Notice';
 import { Spinner } from '@/components/ui/Spinner';
 import { adminApi } from '@/lib/api/admin';
 import { ApiError } from '@/lib/api/client';
+import type { AdminImageAsset } from '@/lib/types';
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGES = 10;
 
 interface ImageUploaderProps {
-  images: string[];
-  onChange: (images: string[]) => void;
+  images: AdminImageAsset[];
+  onChange: (images: AdminImageAsset[]) => void;
   disabled?: boolean;
 }
 
@@ -58,11 +59,11 @@ export function ImageUploader({ images, onChange, disabled = false }: ImageUploa
     setUploading(true);
     setNotice(null);
     try {
-      const { urls } = await adminApi.uploadImages(valid);
-      onChange([...images, ...urls]);
+      const { assets } = await adminApi.uploadImages(valid);
+      onChange([...images, ...assets]);
       setNotice({
         tone: 'success',
-        message: `Uploaded ${urls.length} image${urls.length === 1 ? '' : 's'}.${
+        message: `Uploaded ${assets.length} image${assets.length === 1 ? '' : 's'}.${
           problems.length > 0 ? ` Skipped: ${problems.join(' · ')}` : ''
         }`,
       });
@@ -128,10 +129,10 @@ export function ImageUploader({ images, onChange, disabled = false }: ImageUploa
       {images.length > 0 ? (
         <ul className="flex flex-wrap gap-3">
           {images.map((image, index) => (
-            <li key={`${image}-${index}`} className="w-32 rounded-xl border border-line bg-surface p-2">
+            <li key={`${image.publicId ?? image.url}-${index}`} className="w-32 rounded-xl border border-line bg-surface p-2">
               <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-paper">
                 <Image
-                  src={image}
+                  src={image.url}
                   alt={`Product image ${index + 1}`}
                   fill
                   sizes="128px"

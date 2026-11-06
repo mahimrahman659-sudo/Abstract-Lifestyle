@@ -13,6 +13,7 @@ import { VariantModel } from '../models/variant.model.js';
 import type { UserDocument } from '../models/user.model.js';
 import type { CreateOrderInput, OrderListQuery } from '../schemas/order.schema.js';
 import { generateOrderNumber } from '../utils/order-number.js';
+import { firstImageUrl } from '../utils/images.js';
 import { getPaymentProvider } from './payment.service.js';
 
 export interface OrderDto {
@@ -153,7 +154,7 @@ const buildOrderItems = async (
       sku: variant.sku,
       size: variant.size,
       color: variant.color,
-      image: variant.images[0] ?? product.images[0] ?? null,
+      image: variant.images[0] ?? firstImageUrl(product.images) ?? null,
       unitPrice,
       quantity: cartItem.quantity,
       lineTotal: unitPrice * cartItem.quantity,

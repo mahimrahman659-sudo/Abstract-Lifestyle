@@ -65,14 +65,14 @@ Order JSON: `{ id, orderNumber, checkoutId, status, paymentMethod, paymentStatus
 | DELETE /admin/categories/:id | — | 204 (409 if it has subcategories or products) |
 | GET /admin/products | `?search&status&page&limit` | 200 list envelope (all statuses; `status` = draft \| active \| archived) |
 | GET /admin/products/:id | — | 200 `{ product, variants[] }` (any status — for editing) |
-| POST /admin/products | `{ name, description, category, basePrice, images[], status }` | 201 `{ product }` — slug generated from name (unique) |
+| POST /admin/products | `{ name, description, category, basePrice, images[{ url, publicId }], status }` | 201 `{ product }` — slug generated from name (unique); removed image assets are deleted from Cloudinary |
 | PATCH /admin/products/:id | partial | 200 `{ product }` |
 | DELETE /admin/products/:id | — | 204 hard delete; **200 `{ product, archived: true }` when referenced by orders** (archived, not deleted) |
 | POST /admin/products/:id/variants | `{ sku, size?, color?, price?, stock, lowStockThreshold? }` | 201 `{ variant }` (409 on duplicate SKU or duplicate size/color) |
 | PATCH /admin/variants/:id | partial | 200 `{ variant }` — stock set with `$set`, non-negative integers only |
 | DELETE /admin/variants/:id | — | 204 (409 if it is the product's last variant) |
 | GET /admin/variants | `?lowStock=true&page&limit` | 200 list envelope (variant + product ref + `inStock`/`lowStock` flags) |
-| POST /admin/uploads | multipart `images[]` (jpeg/png/webp, ≤ 5 MB each, max 10) | 201 `{ urls: [] }` — content-verified (magic bytes), random server-side filenames |
+| POST /admin/uploads | multipart `images[]` (jpeg/png/webp, ≤ 5 MB each, max 10) | 201 `{ assets: [{ url, publicId }] }` — content-verified (magic bytes) then uploaded to Cloudinary (`abstract-lifestyle/products`, cloud-generated public_id); `url` is the secure https URL |
 | GET /admin/orders | `?status&page&limit` | 200 list envelope (all orders) |
 | GET /admin/orders/:id | — | 200 `{ order, customer: { id, name, email } \| null }` (any user's order) |
 | PATCH /admin/orders/:id/status | `{ status }` | 200 `{ order }` |

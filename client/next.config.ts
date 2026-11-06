@@ -16,6 +16,22 @@ const apiImageSource = (() => {
   }
 })();
 
+/**
+ * Cloudinary host for product images. The path is restricted to the configured
+ * cloud name (read from client/host env — the cloud name is public, it appears
+ * in every image URL; the API secret never leaves the server).
+ */
+const cloudinaryCloudName =
+  process.env.CLOUDINARY_CLOUD_NAME ?? process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? "";
+
+const cloudinaryImageSource = {
+  protocol: "https" as const,
+  hostname: "res.cloudinary.com",
+  pathname: cloudinaryCloudName
+    ? `/${cloudinaryCloudName}/image/upload/**`
+    : "/image/upload/**",
+};
+
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
@@ -23,6 +39,7 @@ const nextConfig: NextConfig = {
         ...apiImageSource,
         pathname: "/uploads/**",
       },
+      cloudinaryImageSource,
     ],
   },
   // Proxy /api/* to the Express server (same-origin; required for httpOnly cookie auth).

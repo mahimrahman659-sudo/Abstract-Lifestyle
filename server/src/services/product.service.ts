@@ -4,6 +4,7 @@ import { CategoryModel } from '../models/category.model.js';
 import { ProductModel } from '../models/product.model.js';
 import { VariantModel } from '../models/variant.model.js';
 import type { ProductListQuery } from '../schemas/product.schema.js';
+import { firstImageUrl, imageUrls } from '../utils/images.js';
 import { isInStock, isLowStock } from '../utils/stock.js';
 
 export interface ProductCardCategory {
@@ -64,7 +65,7 @@ interface ProductAggregateRow {
   name: string;
   slug: string;
   basePrice: number;
-  images: string[];
+  images: unknown[];
   categoryDoc: { _id: Types.ObjectId; name: string; slug: string } | null;
   priceFrom: number | null;
   priceTo: number | null;
@@ -237,7 +238,7 @@ export const listProducts = async (query: ProductListQuery): Promise<ProductList
       name: row.name,
       slug: row.slug,
       category: toCategoryCard(row.categoryDoc),
-      image: row.images[0] ?? null,
+      image: firstImageUrl(row.images),
       priceFrom: row.priceFrom ?? row.basePrice,
       priceTo: row.priceTo ?? row.basePrice,
       sizes: row.sizes,
@@ -294,7 +295,7 @@ export const getProductBySlug = async (slug: string): Promise<ProductDetail> => 
         ? { id: category._id.toString(), name: category.name, slug: category.slug }
         : null,
       basePrice: product.basePrice,
-      images: product.images,
+      images: imageUrls(product.images),
     },
     variants: variants.map((variant) => ({
       id: variant._id.toString(),

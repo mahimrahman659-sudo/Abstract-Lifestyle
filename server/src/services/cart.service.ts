@@ -5,6 +5,7 @@ import { CartModel, type CartDocument } from '../models/cart.model.js';
 import { ProductModel, type Product } from '../models/product.model.js';
 import { VariantModel, type Variant } from '../models/variant.model.js';
 import { mergeCartItemSchema, type MergeCartItemInput } from '../schemas/cart.schema.js';
+import { firstImageUrl } from '../utils/images.js';
 
 export interface CartItemView {
   variantId: string;
@@ -89,7 +90,7 @@ const buildCartView = async (cart: CartDocument): Promise<CartView> => {
     const sku = variant?.sku ?? null;
     const size = variant?.size ?? null;
     const color = variant?.color ?? null;
-    const image = variant?.images[0] ?? product?.images[0] ?? null;
+    const image = variant?.images[0] ?? firstImageUrl(product?.images) ?? null;
 
     if (!variant || !product || product.status !== 'active') {
       return {

@@ -1,5 +1,6 @@
 import type {
   AdminCategory,
+  AdminImageAsset,
   AdminOrderDetail,
   AdminProduct,
   AdminProductDetail,
@@ -82,7 +83,10 @@ export const adminApi = {
     for (const file of files) {
       form.append('images', file);
     }
-    return apiFetch<{ urls: string[] }>('/admin/uploads', { method: 'POST', body: form });
+    return apiFetch<{ assets: AdminImageAsset[] }>('/admin/uploads', {
+      method: 'POST',
+      body: form,
+    });
   },
 
   // Orders

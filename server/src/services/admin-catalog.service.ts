@@ -12,6 +12,8 @@ import type { CreateProductInput, UpdateProductInput } from '../schemas/product.
 import type { CreateVariantInput, UpdateVariantInput } from '../schemas/variant.schema.js';
 import type { AdminProductQuery, AdminVariantQuery } from '../schemas/admin.schema.js';
 import { slugify } from '../utils/slug.js';
+import { normalizeImages, type ImageAsset } from '../utils/images.js';
+import { destroyImageAssets } from './upload.service.js';
 import { isInStock, isLowStock } from '../utils/stock.js';
 
 export interface CategoryAdminDto {
@@ -31,7 +33,7 @@ export interface ProductAdminDto {
   description: string;
   category: string;
   basePrice: number;
-  images: string[];
+  images: ImageAsset[];
   status: ProductStatus;
 }
 
@@ -184,7 +186,7 @@ const toProductDto = (product: {
   description: string;
   category: Types.ObjectId;
   basePrice: number;
-  images: string[];
+  images: unknown[];
   status: ProductStatus;
 }): ProductAdminDto => ({
   id: product._id.toString(),
@@ -193,7 +195,7 @@ const toProductDto = (product: {
   description: product.description,
   category: product.category.toString(),
   basePrice: product.basePrice,
-  images: product.images,
+  images: normalizeImages(product.images),
   status: product.status,
 });
 
@@ -212,7 +214,7 @@ export const createProduct = async (input: CreateProductInput): Promise<ProductA
     description: input.description,
     category: category._id,
     basePrice: input.basePrice,
-    images: input.images,
+    images: normalizeImages(input.images),
     status: input.status,
   });
   return toProductDto(product);
@@ -242,10 +244,29 @@ export const updateProduct = async (
   }
   if (input.description !== undefined) product.description = input.description;
   if (input.basePrice !== undefined) product.basePrice = input.basePrice;
-  if (input.images !== undefined) product.images = input.images;
+
+  // Track image removals so their Cloudinary assets can be deleted after saving.
+  const removedAssets: ImageAsset[] = [];
+  if (input.images !== undefined) {
+    const nextImages = normalizeImages(input.images);
+    const nextPublicIds = new Set(
+      nextImages.map((asset) => asset.publicId).filter((id): id is string => id !== null),
+    );
+    for (const asset of normalizeImages(product.images)) {
+      if (asset.publicId && !nextPublicIds.has(asset.publicId)) {
+        removedAssets.push(asset);
+      }
+    }
+    product.images = nextImages;
+  }
+
   if (input.status !== undefined) product.status = input.status;
 
   await product.save();
+
+  // Best-effort cleanup: failures are logged by the upload service and never block.
+  await destroyImageAssets(removedAssets.map((asset) => asset.publicId));
+
   return toProductDto(product);
 };
 
@@ -267,6 +288,10 @@ export const deleteProduct = async (
 
   await VariantModel.deleteMany({ product: product._id }).exec();
   await ProductModel.deleteOne({ _id: product._id }).exec();
+
+  // Hard delete succeeded → best-effort cleanup of the Cloudinary assets.
+  await destroyImageAssets(normalizeImages(product.images).map((asset) => asset.publicId));
+
   return { deleted: true };
 };
 

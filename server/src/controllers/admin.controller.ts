@@ -114,7 +114,7 @@ export const uploadImagesHandler: RequestHandler = async (req, res) => {
   }
 
   const urls = await saveImages(files);
-  res.status(201).json({ urls });
+  res.status(201).json({ assets: urls });
 };
 
 export const adminListOrdersHandler: RequestHandler = async (req, res) => {

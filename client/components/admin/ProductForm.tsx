@@ -5,7 +5,7 @@ import { ImageUploader } from '@/components/admin/ImageUploader';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Notice, type NoticeTone } from '@/components/ui/Notice';
-import type { CategoryTreeItem } from '@/lib/types';
+import type { AdminImageAsset, CategoryTreeItem } from '@/lib/types';
 import type { CreateProductPayload, ProductStatus } from '@/lib/types';
 import { formatPoisha, parseTakaToPoisha } from '@/lib/utils/money';
 
@@ -15,7 +15,7 @@ export interface ProductFormValues {
   categoryId: string;
   takaPrice: string;
   status: ProductStatus;
-  images: string[];
+  images: AdminImageAsset[];
 }
 
 export interface ProductFormNotice {

@@ -2,6 +2,12 @@ import type { OrderDto } from './order';
 
 export type ProductStatus = 'draft' | 'active' | 'archived';
 
+/** Cloudinary-backed image stored on admin products (url + public_id). */
+export interface AdminImageAsset {
+  url: string;
+  publicId: string | null;
+}
+
 export interface AdminCategory {
   id: string;
   name: string;
@@ -19,7 +25,7 @@ export interface AdminProduct {
   description: string;
   category: string;
   basePrice: number;
-  images: string[];
+  images: AdminImageAsset[];
   status: ProductStatus;
 }
 
@@ -65,7 +71,7 @@ export interface CreateProductPayload {
   description: string;
   category: string;
   basePrice: number;
-  images: string[];
+  images: AdminImageAsset[];
   status: ProductStatus;
 }
 

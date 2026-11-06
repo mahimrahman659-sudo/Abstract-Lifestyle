@@ -44,7 +44,7 @@ Products attach to a subcategory (or a root category when it has no children).
 | description | string | required |
 | category | ObjectId → categories | required |
 | basePrice | integer | poisha (1/100 BDT); required |
-| images | string[] | URL paths (`/uploads/...`) |
+| images | image asset[] | `{ url, publicId }` objects (Cloudinary); legacy plain strings (`/uploads/...`) are normalized on read |
 | status | 'draft' \| 'active' \| 'archived' | default 'draft' |
 
 Effective variant price = `variant.price ?? product.basePrice` (computed at service layer).

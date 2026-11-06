@@ -24,6 +24,10 @@ const envSchema = z
     ORDER_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(30),
     /** Per-user upload limit (requests per minute). */
     UPLOAD_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(20),
+    /** Cloudinary credentials — required in production, optional in development. */
+    CLOUDINARY_CLOUD_NAME: z.string().trim().default(''),
+    CLOUDINARY_API_KEY: z.string().trim().default(''),
+    CLOUDINARY_API_SECRET: z.string().trim().default(''),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') {
@@ -42,6 +46,14 @@ const envSchema = z
         path: ['TRUST_PROXY'],
         message:
           'TRUST_PROXY must be set in production (e.g. "1" behind a single reverse proxy) so rate limiting and secure cookies see the real client IP',
+      });
+    }
+    if (!value.CLOUDINARY_CLOUD_NAME || !value.CLOUDINARY_API_KEY || !value.CLOUDINARY_API_SECRET) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['CLOUDINARY_CLOUD_NAME'],
+        message:
+          'CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET are required in production',
       });
     }
     const weakAdminPassword =

@@ -73,7 +73,7 @@ Business logic lives only in /server. Next.js never duplicates backend logic; it
 | Auth transport | Browser talks to same-origin `/api/*` via Next.js rewrites → Express; `cors` kept locked to `CLIENT_ORIGIN` as a safety net for direct access |
 | Auth token storage | JWT in **httpOnly cookie** (`al_token`): `httpOnly: true`, `sameSite: 'lax'`, `secure: true` in production (off over local http), `maxAge` = JWT expiry (7d) |
 | Logout | `POST /auth/logout` clears the cookie server-side (JS cannot touch httpOnly); JWT stays stateless |
-| Image storage | Local disk `/server/uploads` via multer (approved); cloud storage is a later swap |
+| Image storage | **Cloudinary** (`abstract-lifestyle/products`, API-generated public_id); product images store `{ url, publicId }`; legacy `/uploads/...` strings still read; local disk no longer written |
 | Search | MongoDB text index on name + description; no fuzzy/partial match |
 | Order snapshots | Order items copy product name, variant size/color, SKU, unit price, image at purchase (history survives catalog edits) |
 | Admin bootstrap | Seed script creates admin from `ADMIN_EMAIL` / `ADMIN_PASSWORD` env |
@@ -83,7 +83,7 @@ Business logic lives only in /server. Next.js never duplicates backend logic; it
 ## 7. Dependencies (approved 2026-11-06 — nothing else without asking)
 | Where | Packages | Purpose |
 |---|---|---|
-| server | express, mongoose, zod, jsonwebtoken, bcryptjs, cors, dotenv, multer, cookie-parser, express-rate-limit | runtime |
+| server | express, mongoose, zod, jsonwebtoken, bcryptjs, cors, dotenv, multer, cookie-parser, express-rate-limit, helmet, cloudinary | runtime |
 | server | typescript, tsx, @types/*, eslint | dev |
 | client | next, react, react-dom, typescript, tailwindcss, eslint | via create-next-app |
 | not approved | helmet or anything else | ask first |
