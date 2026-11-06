@@ -4,6 +4,7 @@ import { addressSchema } from './user.schema.js';
 
 export const createOrderSchema = z
   .object({
+    checkoutId: z.uuid('checkoutId must be a UUID'),
     shippingAddressId: objectIdSchema.optional(),
     shippingAddress: addressSchema.optional(),
     paymentMethod: z.enum(['cod']),

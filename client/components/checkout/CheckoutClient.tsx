@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AddressForm, type AddressFormErrors } from '@/components/checkout/AddressForm';
 import { useCart } from '@/components/cart/CartProvider';
 import { Button } from '@/components/ui/Button';
@@ -41,6 +41,10 @@ const emptyAddress: AddressFormValues = {
 export function CheckoutClient() {
   const router = useRouter();
   const { serverCart, refresh } = useCart();
+
+  // One idempotency key per checkout attempt: retries of this same form submit
+  // reuse it, so the server can never create a duplicate order.
+  const checkoutIdRef = useRef<string>('');
 
   const [addresses, setAddresses] = useState<AddressesState>({ status: 'loading' });
   const [selection, setSelection] = useState<string>('new');
@@ -95,7 +99,14 @@ export function CheckoutClient() {
     setConflict(null);
     setRetryNote(null);
 
-    const payload: CreateOrderPayload = { paymentMethod: 'cod' };
+    if (!checkoutIdRef.current) {
+      checkoutIdRef.current = crypto.randomUUID();
+    }
+
+    const payload: CreateOrderPayload = {
+      checkoutId: checkoutIdRef.current,
+      paymentMethod: 'cod',
+    };
 
     if (selection === 'new') {
       const validation = validateAddress(addressValues);

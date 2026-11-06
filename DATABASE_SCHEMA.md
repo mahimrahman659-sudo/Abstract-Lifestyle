@@ -83,6 +83,7 @@ Guest carts live in client localStorage only; `POST /api/cart/merge` folds them 
 |---|---|---|
 | orderNumber | string | required, unique — `AL-YYYYMMDD-XXXX` |
 | user | ObjectId → users | required (checkout requires login) |
+| checkoutId | string (UUID) | idempotency key for checkout retries; unique (sparse) |
 | items | OrderItem[] | snapshot subdocs |
 | shippingAddress | Address snapshot | fullName, phone, line1, line2?, city, state?, postalCode?, country |
 | paymentMethod | 'cod' | extensible union (future gateways) |
@@ -96,11 +97,14 @@ Guest carts live in client localStorage only; `POST /api/cart/merge` folds them 
 
 OrderItem subdoc (purchase-time snapshots): `product`, `variant` (refs), `name` (product name), `sku`, `size?`, `color?`, `image?`, `unitPrice`, `quantity`, `lineTotal` (money integers in poisha). Snapshot fields capture product name, SKU, variant size/color and unit price at purchase.
 
-**Indexes:** `{ orderNumber: 1 }` unique; `{ user: 1, createdAt: -1 }`; `{ status: 1, createdAt: -1 }`.
+**Indexes:** `{ orderNumber: 1 }` unique; `{ checkoutId: 1 }` unique, sparse (legacy orders without the field are skipped); `{ user: 1, createdAt: -1 }`; `{ status: 1, createdAt: -1 }`.
 
-**Status transitions (enforced server-side):** pending → processing → shipped → delivered; pending | processing → cancelled. No backward jumps; delivered/cancelled are terminal. Customer self-cancel is only allowed from `pending` (atomic transition — stock restored exactly once, double-cancel safe); admin cancels from pending|processing.
+**Status transitions (enforced server-side):** pending → processing → shipped → delivered; pending | processing → cancelled. No backward jumps; delivered/cancelled are terminal. Customer self-cancel is only allowed from `pending` (guarded transition — stock restored exactly once, double-cancel safe); admin cancels from pending|processing.
 
-## Stock integrity (standalone MongoDB — no multi-doc transactions)
-- **Order create — atomic conditional update per variant:** `Variant.findOneAndUpdate({ _id, stock: { $gte: quantity } }, { $inc: { stock: -quantity } })`. If a later line item fails its condition → **compensating rollback**: `$inc` back all already-decremented variants → return 409. Totals always computed server-side from DB prices.
-- **Order cancel:** allowed only from pending/processing; restore stock with `$inc` once (guarded by `stockRestored`).
-- Small race window on multi-item rollback is acceptable for MVP; upgrade path: replica set + real transactions.
+## Stock integrity (MongoDB transactions — Atlas replica set)
+
+- **Order create — one transaction:** the per-variant stock decrements, the order creation and the cart clear run inside a single `session.withTransaction()`. Each line still uses the atomic conditional update `Variant.findOneAndUpdate({ _id, stock: { $gte: quantity } }, { $inc: { stock: -quantity } }, { session })`; if any line fails, the whole transaction aborts and **nothing** is decremented (no manual compensating rollback needed). Totals are always computed server-side from DB prices. Transient transaction errors are retried automatically by `withTransaction`; order-number collisions re-run the transaction with a fresh number; the session is always ended.
+- **Idempotency:** `checkoutId` (client-generated UUID) is stored under a unique sparse index — posting the same `checkoutId` again returns the existing order instead of creating a second one (concurrent duplicates resolve via the unique index and return the winner).
+- **Order cancel (customer + admin) — one transaction:** the guarded status transition, the `stockRestored` flag and the `$inc` stock restoration commit together or not at all; `stockRestored: { $ne: true }` guarantees stock is restored exactly once.
+- Checkout double-submits on the same cart are still rejected early by the atomic `checkoutInProgress` claim (stale after 60s); the cart is cleared only when the caller still holds the claim.
+

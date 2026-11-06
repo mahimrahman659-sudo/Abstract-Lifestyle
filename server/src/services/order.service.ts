@@ -1,4 +1,4 @@
-import type { Types } from 'mongoose';
+import mongoose, { type ClientSession, type Types } from 'mongoose';
 import { env } from '../config/env.js';
 import { AppError } from '../middleware/error-handler.js';
 import { CartModel } from '../models/cart.model.js';
@@ -109,19 +109,20 @@ const resolveShippingAddress = (
   return { fullName, phone, line1, line2, city, state, postalCode, country };
 };
 
-export const restoreStock = async (
-  decrements: Array<{ variantId: Types.ObjectId; quantity: number }>,
-): Promise<void> => {
-  for (const entry of decrements) {
-    await VariantModel.updateOne({ _id: entry.variantId }, { $inc: { stock: entry.quantity } }).exec();
-  }
-};
-
-const buildOrderItems = async (cartItems: Array<{ variant: Types.ObjectId; quantity: number }>): Promise<OrderItem[]> => {
-  const variants = await VariantModel.find({ _id: { $in: cartItems.map((item) => item.variant) } }).exec();
+const buildOrderItems = async (
+  cartItems: Array<{ variant: Types.ObjectId; quantity: number }>,
+  session: ClientSession,
+): Promise<OrderItem[]> => {
+  const variants = await VariantModel.find({
+    _id: { $in: cartItems.map((item) => item.variant) },
+  })
+    .session(session)
+    .exec();
   const products = await ProductModel.find({
     _id: { $in: variants.map((variant) => variant.product) },
-  }).exec();
+  })
+    .session(session)
+    .exec();
 
   const variantById = new Map<string, (typeof variants)[number]>();
   for (const variant of variants) {
@@ -166,6 +167,17 @@ export const createOrder = async (
 ): Promise<OrderDto> => {
   const shippingAddress = resolveShippingAddress(user, input);
   const provider = getPaymentProvider(input.paymentMethod);
+  const { checkoutId } = input;
+
+  // Idempotency: replaying the same checkoutId returns the original order
+  // instead of creating a second one.
+  const replayed = await OrderModel.findOne({ checkoutId }).exec();
+  if (replayed) {
+    if (replayed.user.toString() !== user._id.toString()) {
+      throw new AppError(409, 'CONFLICT', 'checkoutId already used');
+    }
+    return toOrderDto(replayed);
+  }
 
   const cart = await CartModel.findOne({ user: user._id }).exec();
   if (!cart || cart.items.length === 0) {
@@ -188,69 +200,99 @@ export const createOrder = async (
     throw new AppError(409, 'CONFLICT', 'Checkout already in progress');
   }
 
+  // Stock decrements, order creation and cart clearing happen in ONE
+  // transaction: any failure aborts everything automatically, so no manual
+  // compensating rollback is needed.
+  const session = await mongoose.startSession();
+  const result: { created: OrderDocument | null } = { created: null };
+
   try {
-    // Re-validate and re-price everything from the database.
-    const items = await buildOrderItems([...cart.items]);
-    const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
-    const shippingFee = env.SHIPPING_FEE;
-    const total = subtotal + shippingFee;
-
-    // Atomic conditional decrement per line; rollback all on any failure.
-    const decrements: Array<{ variantId: Types.ObjectId; quantity: number }> = [];
-    for (const item of items) {
-      const updated = await VariantModel.findOneAndUpdate(
-        { _id: item.variant, stock: { $gte: item.quantity } },
-        { $inc: { stock: -item.quantity } },
-        { returnDocument: 'after' },
-      ).exec();
-
-      if (!updated) {
-        await restoreStock(decrements);
-        throw new AppError(409, 'CONFLICT', `Insufficient stock for ${item.sku}`);
-      }
-      decrements.push({ variantId: item.variant, quantity: item.quantity });
-    }
-
-    // Save the order (retry orderNumber collisions); roll stock back on failure.
-    let order: OrderDocument | null = null;
     for (let attempt = 1; attempt <= ORDER_NUMBER_ATTEMPTS; attempt += 1) {
       try {
-        order = await OrderModel.create({
-          orderNumber: generateOrderNumber(),
-          user: user._id,
-          items,
-          shippingAddress,
-          paymentMethod: provider.method,
-          paymentStatus: provider.initialPaymentStatus(),
-          subtotal,
-          shippingFee,
-          total,
-          status: 'pending',
-          statusHistory: [{ status: 'pending', at: new Date() }],
-          stockRestored: false,
+        await session.withTransaction(async () => {
+          // Re-validate and re-price everything from the database (inside the session).
+          const items = await buildOrderItems([...cart.items], session);
+          const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
+          const shippingFee = env.SHIPPING_FEE;
+          const total = subtotal + shippingFee;
+
+          // Atomic conditional decrement per line, inside the transaction.
+          for (const item of items) {
+            const updated = await VariantModel.findOneAndUpdate(
+              { _id: item.variant, stock: { $gte: item.quantity } },
+              { $inc: { stock: -item.quantity } },
+              { returnDocument: 'after', session },
+            ).exec();
+
+            if (!updated) {
+              throw new AppError(409, 'CONFLICT', `Insufficient stock for ${item.sku}`);
+            }
+          }
+
+          const [order] = await OrderModel.create(
+            [
+              {
+                orderNumber: generateOrderNumber(),
+                user: user._id,
+                checkoutId,
+                items,
+                shippingAddress,
+                paymentMethod: provider.method,
+                paymentStatus: provider.initialPaymentStatus(),
+                subtotal,
+                shippingFee,
+                total,
+                status: 'pending',
+                statusHistory: [{ status: 'pending', at: new Date() }],
+                stockRestored: false,
+              },
+            ],
+            { session },
+          );
+          if (!order) {
+            throw new AppError(500, 'SERVER_ERROR', 'Failed to create order');
+          }
+
+          // Clear the cart only if we still hold our claim (stale takeovers
+          // must not wipe a cart that already belongs to a newer checkout).
+          const cleared = await CartModel.updateOne(
+            { _id: cart._id, checkoutInProgress: claimTime },
+            { $set: { items: [] } },
+            { session },
+          ).exec();
+          if (cleared.modifiedCount !== 1) {
+            throw new AppError(409, 'CONFLICT', 'Checkout already in progress');
+          }
+
+          result.created = order;
         });
         break;
       } catch (error) {
-        if (isDuplicateKeyError(error) && attempt < ORDER_NUMBER_ATTEMPTS) {
-          continue;
+        if (isDuplicateKeyError(error)) {
+          // A concurrent duplicate submit won the checkoutId race → return its order.
+          const winner = await OrderModel.findOne({ checkoutId }).exec();
+          if (winner) {
+            if (winner.user.toString() !== user._id.toString()) {
+              throw new AppError(409, 'CONFLICT', 'checkoutId already used');
+            }
+            return toOrderDto(winner);
+          }
+          // Otherwise it was an orderNumber collision — retry with a new number.
+          if (attempt < ORDER_NUMBER_ATTEMPTS) {
+            continue;
+          }
         }
-        await restoreStock(decrements);
         throw error;
       }
     }
 
-    if (!order) {
-      await restoreStock(decrements);
+    const committed = result.created;
+    if (!committed) {
       throw new AppError(500, 'SERVER_ERROR', 'Failed to create order');
     }
 
-    await provider.onOrderPlaced(order);
-
-    // Clear the cart only after the order is saved successfully.
-    cart.items = [];
-    await cart.save();
-
-    return toOrderDto(order);
+    await provider.onOrderPlaced(committed);
+    return toOrderDto(committed);
   } finally {
     // Release only our own claim (matched by timestamp) so a stale-claim
     // takeover can never be cleared by the original crashed request.
@@ -258,6 +300,7 @@ export const createOrder = async (
       { _id: cart._id, checkoutInProgress: claimTime },
       { $set: { checkoutInProgress: null } },
     ).exec();
+    await session.endSession();
   }
 };
 
@@ -296,37 +339,55 @@ export const getOrder = async (user: UserDocument, orderId: string): Promise<Ord
 };
 
 /**
- * Customer cancellation: only while `pending`. The status transition is a single
- * atomic update, so a double cancel can never restore stock twice.
+ * Customer cancellation: only while `pending`. The status change, the
+ * `stockRestored` flag and the stock restoration all happen in ONE
+ * transaction, so a failed restore can never leave an order cancelled
+ * without its stock back (and vice versa).
  */
 export const cancelOrder = async (user: UserDocument, orderId: string): Promise<OrderDto> => {
-  const existing = await OrderModel.findOne({ _id: orderId, user: user._id }).exec();
-  if (!existing) {
-    throw new AppError(404, 'NOT_FOUND', 'Order not found');
+  const session = await mongoose.startSession();
+  const result: { cancelled: OrderDto | null } = { cancelled: null };
+
+  try {
+    await session.withTransaction(async () => {
+      const updated = await OrderModel.findOneAndUpdate(
+        { _id: orderId, user: user._id, status: 'pending', stockRestored: { $ne: true } },
+        {
+          $set: { status: 'cancelled', stockRestored: true },
+          $push: { statusHistory: { status: 'cancelled', at: new Date() } },
+        },
+        { returnDocument: 'after', session },
+      ).exec();
+
+      if (!updated) {
+        const exists = await OrderModel.findOne({ _id: orderId, user: user._id })
+          .session(session)
+          .exec();
+        if (!exists) {
+          throw new AppError(404, 'NOT_FOUND', 'Order not found');
+        }
+        throw new AppError(409, 'CONFLICT', 'Order cannot be cancelled');
+      }
+
+      // Only the winner of the guarded transition above restores stock.
+      for (const item of updated.items) {
+        await VariantModel.updateOne(
+          { _id: item.variant },
+          { $inc: { stock: item.quantity } },
+          { session },
+        ).exec();
+      }
+
+      result.cancelled = toOrderDto(updated);
+    });
+  } finally {
+    await session.endSession();
   }
 
-  const updated = await OrderModel.findOneAndUpdate(
-    { _id: orderId, user: user._id, status: 'pending' },
-    {
-      $set: { status: 'cancelled', stockRestored: true },
-      $push: { statusHistory: { status: 'cancelled', at: new Date() } },
-    },
-    { returnDocument: 'after' },
-  ).exec();
-
-  if (!updated) {
+  if (!result.cancelled) {
     throw new AppError(409, 'CONFLICT', 'Order cannot be cancelled');
   }
-
-  // Only the winner of the transition above restores stock.
-  for (const item of updated.items) {
-    await VariantModel.updateOne(
-      { _id: item.variant },
-      { $inc: { stock: item.quantity } },
-    ).exec();
-  }
-
-  return toOrderDto(updated);
+  return result.cancelled;
 };
 
 

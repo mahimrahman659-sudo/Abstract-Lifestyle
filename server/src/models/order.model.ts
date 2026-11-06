@@ -37,6 +37,8 @@ export interface OrderStatusEntry {
 export interface Order {
   orderNumber: string;
   user: Types.ObjectId;
+  /** Client-generated UUID for idempotent checkout retries (unique, sparse). */
+  checkoutId?: string;
   items: OrderItem[];
   shippingAddress: ShippingAddressSnapshot;
   paymentMethod: PaymentMethod;
@@ -100,6 +102,7 @@ const orderSchema = new Schema<Order>(
   {
     orderNumber: { type: String, required: true },
     user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    checkoutId: { type: String },
     items: { type: [orderItemSchema], required: true },
     shippingAddress: { type: shippingAddressSchema, required: true },
     paymentMethod: { type: String, enum: ['cod'], required: true },
@@ -119,6 +122,7 @@ const orderSchema = new Schema<Order>(
 );
 
 orderSchema.index({ orderNumber: 1 }, { unique: true });
+orderSchema.index({ checkoutId: 1 }, { unique: true, sparse: true });
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ status: 1, createdAt: -1 });
 

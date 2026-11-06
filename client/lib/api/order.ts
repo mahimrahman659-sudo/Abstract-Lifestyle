@@ -7,6 +7,8 @@ import type {
 import { apiFetch } from './client';
 
 export interface CreateOrderPayload {
+  /** Client-generated UUID — idempotency key for safe checkout retries. */
+  checkoutId: string;
   paymentMethod: 'cod';
   shippingAddressId?: string;
   shippingAddress?: AddressPayload;
