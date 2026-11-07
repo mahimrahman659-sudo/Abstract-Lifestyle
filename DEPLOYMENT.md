@@ -33,6 +33,12 @@ each section before exposing the store to real customers.
 | `NEXT_PUBLIC_SITE_URL` | Public storefront origin (used by metadata, `robots.txt`, `sitemap.xml`) |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google Identity Services client id (public by design — it configures the hosted Google button) |
 
+### Vercel (client)
+
+The client is a **monorepo subdirectory** (`client/`). After importing the Git repo into a Vercel project, set **Project Settings → Build and Deployment → Root Directory = `client`** — otherwise `vercel build` runs against the repo root `package.json` and fails with `No Next.js version detected` (the root file has no `next` dependency; the app lives in `client/`). This is a dashboard setting; `vercel.json` cannot set it.
+
+The Express API (`server/`) is **not** part of the Vercel deployment — host it separately (e.g. Render/Railway/Fly) and set `API_URL` in the Vercel project to that origin so the client's `/api/*` rewrites reach it. Set the client env table above (Production) in the Vercel project; at minimum `API_URL` and `NEXT_PUBLIC_SITE_URL`.
+
 - [ ] Every variable above is set from the host's secret manager — never committed to the repo
 - [ ] `server/.env.example` and `client/.env.example` list every variable used in code
 - [ ] `git grep -I "mongodb+srv"`, `git grep "JWT_SECRET="` etc. show only placeholders
