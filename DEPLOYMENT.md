@@ -39,6 +39,20 @@ The client is a **monorepo subdirectory** (`client/`). After importing the Git r
 
 The Express API (`server/`) is **not** part of the Vercel deployment — host it separately (e.g. Render/Railway/Fly) and set `API_URL` in the Vercel project to that origin so the client's `/api/*` rewrites reach it. Set the client env table above (Production) in the Vercel project; at minimum `API_URL` and `NEXT_PUBLIC_SITE_URL`.
 
+### Render (server)
+
+New Web Service → connect the repo, then:
+
+| Field | Value |
+|---|---|
+| Root Directory | `server` |
+| Build Command | `npm install && npm run build` |
+| Start Command | `npm start` |
+| Health Check Path | `/api/health` |
+| Region | any (pick one near the MongoDB cluster) |
+
+Set the **server** env table above (Production) in the Render dashboard; `TRUST_PROXY=1` is mandatory (Render proxies all traffic) and `PORT` is injected by Render — do not set it. Allow Render's outbound IPs in MongoDB Atlas Network Access. After the first deploy, run the seed once (`npm run seed:prod -- --admin-only`, or locally against the prod `MONGODB_URI`) unless the database is already seeded. Finally set `API_URL` in Vercel to the Render service URL (`https://<name>.onrender.com`) and redeploy the Vercel project; set `CLIENT_ORIGIN` on Render to the Vercel origin.
+
 - [ ] Every variable above is set from the host's secret manager — never committed to the repo
 - [ ] `server/.env.example` and `client/.env.example` list every variable used in code
 - [ ] `git grep -I "mongodb+srv"`, `git grep "JWT_SECRET="` etc. show only placeholders
