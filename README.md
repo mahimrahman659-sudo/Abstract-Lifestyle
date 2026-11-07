@@ -94,6 +94,18 @@ npm run seed -- --admin-only # admin + category trees only (production-safe)
 
 Both variants are idempotent (upserts).
 
+## Changing a user's role
+
+```bash
+cd server
+npm run set-role -- --email someone@example.com --role admin   # or: --role customer
+```
+
+Existing accounts only — the person must have registered or signed in once first; the script never
+creates users and never touches passwords or Google links. It prints just the email and the
+resulting role, and refuses to demote the **last remaining admin**. In production, build first and
+use `npm run set-role:prod -- --email … --role …` (or run it from the host's shell).
+
 ## API proxy setup
 
 The browser never talks to the API host directly. `client/next.config.ts` rewrites same-origin

@@ -10,6 +10,8 @@
     "start": "node dist/index.js",
     "seed": "tsx src/scripts/seed.ts",
     "seed:prod": "node dist/scripts/seed.js",
+    "set-role": "tsx src/scripts/set-role.ts",
+    "set-role:prod": "node dist/scripts/set-role.js",
     "type-check": "tsc --noEmit",
     "lint": "eslint ."
   },

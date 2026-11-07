@@ -115,6 +115,9 @@ npm run seed:prod -- --admin-only   # admin + category trees only, no demo produ
 - [ ] Do **not** run the demo seed (`npm run seed`) against a production database
 - [ ] Sign in once, create real categories/products in `/admin`, then treat the seeded admin as the
       only admin account (rotate the password after handover if it was shared)
+- [ ] Promote/demote accounts with `npm run set-role:prod -- --email <email> --role <admin|customer>`
+      (existing users only — the account must sign in once first; it never creates users, never
+      touches passwords, and refuses to demote the last remaining admin)
 - [ ] Never reuse the example credentials from `.env.example`
 
 ## 7. Final go-live checks
