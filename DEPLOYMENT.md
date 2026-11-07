@@ -46,10 +46,12 @@ New Web Service → connect the repo, then:
 | Field | Value |
 |---|---|
 | Root Directory | `server` |
-| Build Command | `npm install && npm run build` |
+| Build Command | `npm install --include=dev && npm run build` |
 | Start Command | `npm start` |
 | Health Check Path | `/api/health` |
 | Region | any (pick one near the MongoDB cluster) |
+
+The `--include=dev` flag is required: `NODE_ENV=production` (set as a service env var) makes a plain `npm install` skip devDependencies, and the build needs `typescript` + `@types/node` (`tsc` fails with `TS2688: Cannot find type definition file for 'node'` otherwise). The repo does not commit `package-lock.json`, so Render resolves dependencies fresh on every deploy.
 
 Set the **server** env table above (Production) in the Render dashboard; `TRUST_PROXY=1` is mandatory (Render proxies all traffic) and `PORT` is injected by Render — do not set it. Allow Render's outbound IPs in MongoDB Atlas Network Access. After the first deploy, run the seed once (`npm run seed:prod -- --admin-only`, or locally against the prod `MONGODB_URI`) unless the database is already seeded. Finally set `API_URL` in Vercel to the Render service URL (`https://<name>.onrender.com`) and redeploy the Vercel project; set `CLIENT_ORIGIN` on Render to the Vercel origin.
 
