@@ -15,7 +15,7 @@ function CategoryCard({ category }: { category: CategoryTreeItem }) {
         href={`/products?category=${category.slug}`}
         className="group flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-surface transition-shadow hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
-        <div className="relative flex aspect-[16/10] items-center justify-center bg-paper">
+        <div className="relative flex aspect-[16/10] items-center justify-center bg-tile">
           {category.image ? (
             <Image
               src={category.image}

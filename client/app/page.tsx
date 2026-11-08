@@ -42,7 +42,7 @@ export default function HomePage() {
           </Link>
           <Link
             href="/products?category=clothing"
-            className="inline-flex h-12 items-center rounded-full border border-line bg-surface px-6 text-base font-medium text-ink transition-colors hover:bg-paper focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="inline-flex h-12 items-center rounded-full border border-line bg-surface px-6 text-base font-medium text-ink transition-colors hover:bg-tile focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             Shop clothing
           </Link>

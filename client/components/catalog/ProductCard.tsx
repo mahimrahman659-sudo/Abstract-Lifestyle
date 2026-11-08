@@ -8,7 +8,7 @@ export function ProductImage({ src, name }: { src: string | null; name: string }
   if (!src) {
     return (
       <div
-        className="flex h-full w-full items-center justify-center bg-paper text-muted"
+        className="flex h-full w-full items-center justify-center bg-tile text-muted"
         role="img"
         aria-label={`No image available for ${name}`}
       >
@@ -38,7 +38,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
       href={`/products/${product.slug}`}
       className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface transition-shadow hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
     >
-      <div className="relative aspect-[4/5] w-full overflow-hidden bg-paper">
+      <div className="relative aspect-[4/5] w-full overflow-hidden bg-tile">
         <ProductImage src={product.image} name={product.name} />
         {!product.inStock ? (
           <span className="absolute left-3 top-3 rounded-full bg-ink/80 px-2.5 py-1 text-xs font-medium text-white">

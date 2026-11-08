@@ -28,7 +28,7 @@ function AdminNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
             className={cn(
               'block rounded-xl px-3 py-2 text-sm font-medium transition-colors',
               'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-              active ? 'bg-accent text-white' : 'text-muted hover:bg-paper hover:text-ink',
+              active ? 'bg-accent text-white' : 'text-muted hover:bg-tile hover:text-ink',
             )}
           >
             {item.label}

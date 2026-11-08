@@ -1,0 +1,128 @@
+/**
+ * Single source of truth for editable storefront text (PROJECT_CONTEXT §5).
+ * Components read from here — edit copy here, not in components.
+ *
+ * Claims policy: every claim must be true for this store (Cash on Delivery,
+ * flat-fee delivery, easy exchange). Never invent numbers, ratings or customer
+ * counts. Items the owner must confirm before launch are marked "OWNER: confirm".
+ */
+
+export interface NavLink {
+  label: string;
+  href: string;
+}
+
+export interface FooterColumn {
+  title: string;
+  links: NavLink[];
+}
+
+export interface TrustItem {
+  icon: 'cod' | 'truck' | 'exchange';
+  title: string;
+  text: string;
+}
+
+export interface SocialLink {
+  label: 'Facebook' | 'Instagram' | 'X';
+  href: string;
+}
+
+export const site = {
+  name: 'Abstract Lifestyle',
+  tagline: 'Clothing & everyday lifestyle',
+  description:
+    'Clothing and everyday lifestyle essentials with Cash on Delivery, flat-fee delivery and easy exchange.',
+
+  /** Announcement bar — exactly three short lines, one per icon. */
+  announcement: [
+    'Cash on Delivery on every order',
+    'Flat delivery fee on every order',
+    'Easy exchange on every purchase',
+  ],
+
+  /** Hero copy (used by the home page). */
+  hero: {
+    title: 'Everyday style, made simple',
+    subtitle:
+      'Clothing and lifestyle essentials — Cash on Delivery, flat-fee delivery and easy exchange.',
+    primaryCta: { label: 'Shop now', href: '/products' },
+    secondaryCta: { label: 'New arrivals', href: '/products?sort=newest' },
+  },
+
+  /** Trust strip — every claim here is true for this store. */
+  trust: [
+    { icon: 'cod', title: 'Cash on Delivery', text: 'Pay in cash when your order arrives.' },
+    {
+      icon: 'truck',
+      title: 'Flat-fee delivery',
+      text: 'One flat delivery fee, shown before you order.',
+    },
+    { icon: 'exchange', title: 'Easy exchange', text: 'Simple exchange on eligible items.' },
+  ] as TrustItem[],
+
+  /** Main navigation (header bar + mobile menu). */
+  nav: [
+    { label: 'Home', href: '/' },
+    { label: 'Shop', href: '/products' },
+    { label: 'Clothing', href: '/products?category=clothing' },
+    { label: 'Lifestyle', href: '/products?category=lifestyle' },
+    { label: 'New Arrivals', href: '/products?sort=newest' },
+  ] as NavLink[],
+
+  footer: {
+    /** Two-line brand blurb. */
+    description:
+      'Clothing and everyday lifestyle products, kept simple. Cash on Delivery, flat-fee delivery and easy exchange on every order.',
+    columns: [
+      {
+        title: 'Shop',
+        links: [
+          { label: 'All Products', href: '/products' },
+          { label: 'New Arrivals', href: '/products?sort=newest' },
+          { label: 'Clothing', href: '/products?category=clothing' },
+          { label: 'Lifestyle', href: '/products?category=lifestyle' },
+        ],
+      },
+      {
+        title: 'Collections',
+        links: [
+          { label: 'T-Shirts', href: '/products?category=t-shirts' },
+          { label: 'Hoodies', href: '/products?category=hoodies' },
+          { label: 'Accessories', href: '/products?category=accessories' },
+          { label: 'Bags', href: '/products?category=bags' },
+        ],
+      },
+      {
+        title: 'Customer Service',
+        links: [
+          { label: 'Contact Us', href: '/contact' },
+          { label: 'Shipping & Returns', href: '/shipping-returns' },
+          { label: 'My Orders', href: '/orders' },
+        ],
+      },
+      {
+        title: 'Company',
+        links: [
+          { label: 'About', href: '/about' },
+          { label: 'Privacy Policy', href: '/privacy' },
+        ],
+      },
+    ] as FooterColumn[],
+    /** Payment column copy — text only, no card logos. */
+    payment: 'Cash on Delivery',
+  },
+
+  // OWNER: confirm — replace '#' with the real profile URLs (or remove unused ones).
+  socials: [
+    { label: 'Facebook', href: '#' },
+    { label: 'Instagram', href: '#' },
+    { label: 'X', href: '#' },
+  ] as SocialLink[],
+
+  // OWNER: confirm — real support email and hours before launch.
+  contact: {
+    email: 'hello@example.com',
+    hours: 'Saturday–Thursday, 10:00–18:00',
+  },
+};

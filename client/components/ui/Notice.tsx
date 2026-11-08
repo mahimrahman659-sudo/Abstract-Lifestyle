@@ -10,7 +10,7 @@ export interface NoticeProps {
 }
 
 const toneClasses: Record<NoticeTone, string> = {
-  info: 'border-line bg-paper text-ink',
+  info: 'border-line bg-tile text-ink',
   success: 'border-success/40 bg-success/10 text-success',
   error: 'border-danger/40 bg-danger/10 text-danger',
 };

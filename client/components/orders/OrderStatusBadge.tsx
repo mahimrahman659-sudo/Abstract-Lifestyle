@@ -2,7 +2,7 @@ import type { OrderStatus } from '@/lib/types';
 import { cn } from '@/lib/utils/cn';
 
 const statusClasses: Record<OrderStatus, string> = {
-  pending: 'border-line bg-paper text-ink',
+  pending: 'border-line bg-tile text-ink',
   processing: 'border-accent/40 bg-accent/10 text-accent',
   shipped: 'border-accent/40 bg-accent/10 text-accent',
   delivered: 'border-success/40 bg-success/10 text-success',

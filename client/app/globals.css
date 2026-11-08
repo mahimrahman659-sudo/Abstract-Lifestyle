@@ -2,15 +2,21 @@
 
 /* Abstract Lifestyle design tokens (Tailwind v4 theme) */
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --color-paper: #faf9f7;
+  --color-paper: #ffffff;
   --color-surface: #ffffff;
-  --color-ink: #1c1917;
-  --color-muted: #6b6560;
-  --color-line: #e8e4df;
-  --color-accent: #14625c;
+  --color-tile: #f4f4f2;
+  --color-cream: #f5efe6;
+  --color-cream-deep: #ece2d3;
+  --color-ink: #111111;
+  --color-muted: #6b6b6b;
+  --color-line: #e8e8e6;
+  --color-accent: #2f6b34;
+  --color-brand: #2f6b34;
+  --color-brand-dark: #234f27;
+  --color-announce: #0f2a1b;
   --color-danger: #b3261e;
   --color-success: #1e6f3d;
   --color-warning: #8a5a00;
@@ -20,5 +26,17 @@ body {
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-sans);
+  font-size: 15px;
 }
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  letter-spacing: -0.02em;
+  font-weight: 600;
+}
+
 

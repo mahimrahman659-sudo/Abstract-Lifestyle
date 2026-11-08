@@ -69,7 +69,7 @@ export function ProductFilters({ state, categories, facets }: ProductFiltersProp
     <li key={item.id}>
       <label
         className={cn(
-          'flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-paper',
+          'flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-tile',
           'has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent',
           depth > 0 && 'ml-4',
         )}
@@ -109,7 +109,7 @@ export function ProductFilters({ state, categories, facets }: ProductFiltersProp
           <legend className="mb-2 text-sm font-semibold text-ink">Category</legend>
           <ul className="space-y-0.5">
             <li>
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-paper">
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-tile">
                 <input
                   type="radio"
                   name="category"

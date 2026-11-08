@@ -130,7 +130,7 @@ export function ImageUploader({ images, onChange, disabled = false }: ImageUploa
         <ul className="flex flex-wrap gap-3">
           {images.map((image, index) => (
             <li key={`${image.publicId ?? image.url}-${index}`} className="w-32 rounded-xl border border-line bg-surface p-2">
-              <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-paper">
+              <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-tile">
                 <Image
                   src={image.url}
                   alt={`Product image ${index + 1}`}

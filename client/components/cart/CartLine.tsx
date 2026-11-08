@@ -45,7 +45,7 @@ function LineShell({
 }) {
   return (
     <li className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-4 sm:flex-row">
-      <div className="relative size-20 shrink-0 overflow-hidden rounded-xl bg-paper">
+      <div className="relative size-20 shrink-0 overflow-hidden rounded-xl bg-tile">
         <ProductImage src={image} name={name} />
       </div>
       <div className="flex flex-1 flex-col gap-2">

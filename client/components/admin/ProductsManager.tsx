@@ -20,7 +20,7 @@ type ListState =
   | { status: 'success'; data: ListEnvelope<AdminProduct> };
 
 const STATUS_CLASSES: Record<ProductStatus, string> = {
-  draft: 'border-line bg-paper text-muted',
+  draft: 'border-line bg-tile text-muted',
   active: 'border-success/40 bg-success/10 text-success',
   archived: 'border-danger/40 bg-danger/10 text-danger',
 };

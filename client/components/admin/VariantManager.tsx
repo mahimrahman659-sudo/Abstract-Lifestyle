@@ -368,7 +368,7 @@ export function VariantManager({ productId, variants, reload }: VariantManagerPr
         <form
           onSubmit={handleEdit}
           noValidate
-          className="mt-6 space-y-3 rounded-xl border border-accent/40 bg-paper p-4"
+          className="mt-6 space-y-3 rounded-xl border border-accent/40 bg-tile p-4"
         >
           <h3 className="text-sm font-semibold text-ink">Edit variant</h3>
           {fields(editValues, editErrors, setEditField)}

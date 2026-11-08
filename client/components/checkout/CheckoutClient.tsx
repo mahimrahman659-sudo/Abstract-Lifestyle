@@ -290,7 +290,7 @@ export function CheckoutClient() {
           <h2 id="payment-heading" className="text-base font-semibold text-ink">
             Payment method
           </h2>
-          <p className="mt-3 rounded-xl border border-line bg-paper px-4 py-3 text-sm text-ink">
+          <p className="mt-3 rounded-xl border border-line bg-tile px-4 py-3 text-sm text-ink">
             Cash on Delivery — pay with cash when your order arrives.
           </p>
         </section>

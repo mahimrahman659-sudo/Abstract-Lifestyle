@@ -10,7 +10,7 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl border border-line bg-paper">
+      <div className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl border border-line bg-tile">
         <ProductImage src={current} name={name} />
       </div>
       {images.length > 1 ? (

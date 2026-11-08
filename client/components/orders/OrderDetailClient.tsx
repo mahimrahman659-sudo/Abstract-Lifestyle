@@ -157,7 +157,7 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
         <ul className="mt-4 space-y-4">
           {order.items.map((item) => (
             <li key={item.variant} className="flex items-center gap-4">
-              <div className="relative size-16 shrink-0 overflow-hidden rounded-xl bg-paper">
+              <div className="relative size-16 shrink-0 overflow-hidden rounded-xl bg-tile">
                 <ProductImage src={item.image} name={item.name} />
               </div>
               <div className="flex flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-1">
