@@ -3,7 +3,8 @@ import { SectionHeading } from '@/components/home/SectionHeading';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { fetchNewArrivals } from '@/lib/api/server';
+import { fetchNewArrivals, getNewBadgeCutoff } from '@/lib/api/server';
+import { isCreatedAfter } from '@/lib/catalog/new-badge';
 import { site } from '@/config/site';
 import type { ListEnvelope, ProductCard as ProductCardData } from '@/lib/types';
 
@@ -26,6 +27,8 @@ async function loadArrivals(): Promise<ListEnvelope<ProductCardData> | null> {
 
 export async function NewArrivals() {
   const data = await loadArrivals();
+  // Cached snapshot of "now"; read once per render so every card agrees.
+  const newCutoff = await getNewBadgeCutoff();
 
   return (
     <section aria-labelledby="new-arrivals-heading">
@@ -44,7 +47,7 @@ export async function NewArrivals() {
         <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           {data.items.map((product) => (
             <li key={product.id}>
-              <ProductCard product={product} />
+              <ProductCard product={product} isNew={isCreatedAfter(product.createdAt, newCutoff)} />
             </li>
           ))}
         </ul>

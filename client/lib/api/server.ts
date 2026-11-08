@@ -1,6 +1,22 @@
+import { cacheLife } from 'next/cache';
+import { NEW_BADGE_WINDOW_MS } from '@/lib/catalog/new-badge';
 import type { CategoryTreeItem, ListEnvelope, ProductCard, ProductDetail } from '@/lib/types';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
+
+/**
+ * Cutoff timestamp (ms) for the "New" badge.
+ *
+ * `Date.now()` cannot be read while a page is prerendering, so the snapshot is
+ * taken inside a cached scope: the value is baked at build time and refreshed
+ * on the same short cadence as the catalog data. The home page therefore stays
+ * statically prerendered instead of being forced to render dynamically.
+ */
+export const getNewBadgeCutoff = async (): Promise<number> => {
+  'use cache';
+  cacheLife('minutes');
+  return Date.now() - NEW_BADGE_WINDOW_MS;
+};
 
 /** Server-side fetch for the product detail page (dynamic, never cached). */
 export const fetchProductDetail = async (slug: string): Promise<ProductDetail | null> => {

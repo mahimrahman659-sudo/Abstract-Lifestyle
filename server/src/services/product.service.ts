@@ -24,6 +24,8 @@ export interface ProductCard {
   sizes: string[];
   colors: string[];
   inStock: boolean;
+  /** Creation timestamp (ISO 8601) — public; used for the "New" badge. */
+  createdAt: string;
 }
 
 export interface ProductListResult {
@@ -72,6 +74,7 @@ interface ProductAggregateRow {
   sizes: string[];
   colors: string[];
   totalStock: number;
+  createdAt: Date;
 }
 
 const resolveCategoryIds = async (slug: string): Promise<Types.ObjectId[] | null> => {
@@ -214,6 +217,7 @@ export const listProducts = async (query: ProductListQuery): Promise<ProductList
               sizes: 1,
               colors: 1,
               totalStock: 1,
+              createdAt: 1,
               categoryDoc: { $arrayElemAt: ['$categoryDocs', 0] },
             },
           },
@@ -244,6 +248,7 @@ export const listProducts = async (query: ProductListQuery): Promise<ProductList
       sizes: row.sizes,
       colors: row.colors,
       inStock: isInStock(row.totalStock),
+      createdAt: row.createdAt.toISOString(),
     })),
     page: query.page,
     limit: query.limit,

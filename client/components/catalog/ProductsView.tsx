@@ -11,6 +11,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { catalogApi } from '@/lib/api/catalog';
 import { ApiError } from '@/lib/api/client';
+import { isCreatedAfter, NEW_BADGE_WINDOW_MS } from '@/lib/catalog/new-badge';
 import {
   buildCatalogQueryString,
   hasActiveCatalogFilters,
@@ -23,7 +24,7 @@ import type { CategoryTreeItem, ListEnvelope, ProductCard as ProductCardData, Pr
 type ListState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'success'; data: ListEnvelope<ProductCardData> };
+  | { status: 'success'; data: ListEnvelope<ProductCardData>; newCutoff: number };
 
 const deriveFacets = (products: ProductCardData[]): CatalogFacets => {
   const sizes = new Set<string>();
@@ -67,7 +68,7 @@ export function ProductsView() {
       try {
         const data = await catalogApi.getProducts(toProductListParams(state), controller.signal);
         if (!controller.signal.aborted) {
-          setList({ status: 'success', data });
+          setList({ status: 'success', data, newCutoff: Date.now() - NEW_BADGE_WINDOW_MS });
         }
       } catch (error) {
         if (controller.signal.aborted) {
@@ -210,7 +211,7 @@ export function ProductsView() {
               <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
                 {list.data.items.map((product) => (
                   <li key={product.id}>
-                    <ProductCard product={product} />
+                    <ProductCard product={product} isNew={isCreatedAfter(product.createdAt, list.newCutoff)} />
                   </li>
                 ))}
               </ul>

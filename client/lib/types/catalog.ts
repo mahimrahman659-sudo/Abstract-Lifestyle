@@ -29,8 +29,8 @@ export interface ProductCard {
   sizes: string[];
   colors: string[];
   inStock: boolean;
-  /** ISO date — only when the API includes it; gates the "New" badge. */
-  createdAt?: string;
+  /** ISO 8601 creation timestamp — gates the "New" badge (last 14 days). */
+  createdAt: string;
 }
 
 export interface PublicVariant {

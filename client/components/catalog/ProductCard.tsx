@@ -4,19 +4,8 @@ import { CartIcon } from '@/components/ui/icons';
 import { Price } from '@/components/ui/Price';
 import type { ProductCard as ProductCardData } from '@/lib/types';
 
-const NEW_BADGE_DAYS = 14;
-const DAY_MS = 24 * 60 * 60 * 1000;
 const focusClass =
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
-
-/** "New" only when the API returned createdAt and it is within 14 days. */
-const isRecentlyCreated = (createdAt?: string): boolean => {
-  if (!createdAt) {
-    return false;
-  }
-  const created = new Date(createdAt).getTime();
-  return !Number.isNaN(created) && Date.now() - created < NEW_BADGE_DAYS * DAY_MS;
-};
 
 export interface ProductImageProps {
   src: string | null;
@@ -55,7 +44,18 @@ export function ProductImage({ src, name, className = '', sizes }: ProductImageP
   );
 }
 
-export function ProductCard({ product }: { product: ProductCardData }) {
+export interface ProductCardProps {
+  product: ProductCardData;
+  /**
+   * "New" badge flag (created within the last 14 days), decided by the caller
+   * from a stable cutoff instead of reading the clock during render. The home
+   * list uses the cached server cutoff; the catalog listing derives it once when
+   * its data arrives — so rendering stays pure and nothing becomes dynamic.
+   */
+  isNew: boolean;
+}
+
+export function ProductCard({ product, isNew }: ProductCardProps) {
   const href = `/products/${product.slug}`;
 
   return (
@@ -68,7 +68,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
             className="object-contain p-2"
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
           />
-          {isRecentlyCreated(product.createdAt) ? (
+          {isNew ? (
             <span className="absolute left-2 top-2 rounded-[4px] bg-brand px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
               New
             </span>

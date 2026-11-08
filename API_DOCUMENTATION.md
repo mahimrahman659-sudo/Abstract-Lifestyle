@@ -35,7 +35,7 @@ Codes: `VALIDATION_ERROR` 400 · `UNAUTHORIZED` 401 · `FORBIDDEN` 403 · `NOT_F
 | GET /products/:slug | — | 200 `{ product, variants: [Variant], sizeGuideKey: 'clothing' \| null }` |
 | GET /health | — | 200 `{ ok: true }` |
 
-ProductCard: `{ id, name, slug, category, image, priceFrom, priceTo, sizes[], colors[], inStock }`
+ProductCard: `{ id, name, slug, category, image, priceFrom, priceTo, sizes[], colors[], inStock, createdAt }` (`createdAt` = ISO 8601 creation timestamp; the client uses it to show a "New" badge only for products created within the last 14 days)
 Variant: `{ id, sku, size, color, price (effective), stock, inStock, lowStock, images[] }` (`lowStock` = stock ≤ lowStockThreshold and > 0).
 
 ## Cart (customer — server-side cart)
