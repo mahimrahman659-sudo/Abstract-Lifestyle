@@ -1,36 +1,35 @@
-import Link from 'next/link';
 import { ProductCard } from '@/components/catalog/ProductCard';
+import { SectionHeading } from '@/components/home/SectionHeading';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { fetchNewArrivals } from '@/lib/api/server';
+import { site } from '@/config/site';
 import type { ListEnvelope, ProductCard as ProductCardData } from '@/lib/types';
 
-async function loadArrivals(limit: number): Promise<ListEnvelope<ProductCardData> | null> {
+const LIMIT = 5;
+
+const head = () => ({
+  id: 'new-arrivals-heading',
+  title: site.sections.newArrivals.title,
+  linkLabel: site.sections.newArrivals.linkLabel,
+  href: site.sections.newArrivals.href,
+});
+
+async function loadArrivals(): Promise<ListEnvelope<ProductCardData> | null> {
   try {
-    return await fetchNewArrivals(limit);
+    return await fetchNewArrivals(LIMIT);
   } catch {
     return null;
   }
 }
 
-export async function NewArrivals({ limit = 8 }: { limit?: number }) {
-  const data = await loadArrivals(limit);
+export async function NewArrivals() {
+  const data = await loadArrivals();
 
   return (
     <section aria-labelledby="new-arrivals-heading">
-      <div className="mb-4 flex items-end justify-between gap-4">
-        <h2 id="new-arrivals-heading" className="text-xl font-semibold tracking-tight text-ink">
-          New arrivals
-        </h2>
-        <Link
-          href="/products?sort=newest"
-          className="text-sm font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        >
-          View all
-        </Link>
-      </div>
-
+      <SectionHeading {...head()} />
       {data === null ? (
         <ErrorState
           title="Could not load new arrivals"
@@ -42,7 +41,7 @@ export async function NewArrivals({ limit = 8 }: { limit?: number }) {
           description="New products will appear here as soon as the catalog is stocked."
         />
       ) : (
-        <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+        <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           {data.items.map((product) => (
             <li key={product.id}>
               <ProductCard product={product} />
@@ -57,10 +56,17 @@ export async function NewArrivals({ limit = 8 }: { limit?: number }) {
 export function NewArrivalsSkeleton() {
   return (
     <section aria-hidden="true">
-      <Skeleton className="mb-4 h-7 w-40" />
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, index) => (
-          <Skeleton key={index} className="aspect-[4/5] w-full rounded-2xl" />
+      <div className="mb-5 flex items-end justify-between gap-4">
+        <Skeleton className="h-7 w-40" />
+        <Skeleton className="h-4 w-28" />
+      </div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        {Array.from({ length: LIMIT }).map((_, index) => (
+          <div key={index} className="flex flex-col">
+            <Skeleton className="aspect-square w-full rounded-lg" />
+            <Skeleton className="mt-2 h-3 w-3/4" />
+            <Skeleton className="mt-1.5 h-4 w-16" />
+          </div>
         ))}
       </div>
     </section>

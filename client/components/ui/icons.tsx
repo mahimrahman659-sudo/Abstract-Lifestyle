@@ -120,3 +120,56 @@ export function XIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function StarIcon(props: IconProps) {
+  return (
+    <svg {...svgProps} {...props}>
+      <path d="m12 3.5 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8L12 3.5Z" />
+    </svg>
+  );
+}
+
+export function ArrowRightIcon(props: IconProps) {
+  return (
+    <svg {...svgProps} {...props}>
+      <path d="M4 12h16m-6-6 6 6-6 6" />
+    </svg>
+  );
+}
+
+export function ShieldIcon(props: IconProps) {
+  return (
+    <svg {...svgProps} {...props}>
+      <path d="M12 3.5 5.5 6v5c0 4.2 2.7 7.6 6.5 9 3.8-1.4 6.5-4.8 6.5-9V6L12 3.5Z" />
+      <path d="m9 11.5 2 2 4-4" />
+    </svg>
+  );
+}
+
+export function SupportIcon(props: IconProps) {
+  return (
+    <svg {...svgProps} {...props}>
+      <path d="M4 13a8 8 0 0 1 16 0" />
+      <path d="M4 13v3a2 2 0 0 0 2 2h1v-5H6a2 2 0 0 0-2 2ZM20 13v3a2 2 0 0 1-2 2h-1v-5h1a2 2 0 0 1 2 2Z" />
+      <path d="M17 18v1.5a2.5 2.5 0 0 1-2.5 2.5H12" />
+    </svg>
+  );
+}
+
+export function ShirtIcon(props: IconProps) {
+  return (
+    <svg {...svgProps} {...props}>
+      <path d="M8.5 4 4 6.5 6 10l2-1v11h8V9l2 1 2-3.5L15.5 4a3.5 3.5 0 0 1-7 0Z" />
+    </svg>
+  );
+}
+
+export function TagIcon(props: IconProps) {
+  return (
+    <svg {...svgProps} {...props}>
+      <path d="M3.5 11.5v-8h8l9 9-8 8-9-9Z" />
+      <circle cx="8" cy="8" r="1.25" />
+    </svg>
+  );
+}
+

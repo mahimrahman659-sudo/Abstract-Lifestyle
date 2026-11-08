@@ -18,7 +18,7 @@ export interface FooterColumn {
 }
 
 export interface TrustItem {
-  icon: 'cod' | 'truck' | 'exchange';
+  icon: 'cod' | 'exchange' | 'shield' | 'support';
   title: string;
   text: string;
 }
@@ -43,23 +43,55 @@ export const site = {
 
   /** Hero copy (used by the home page). */
   hero: {
-    title: 'Everyday style, made simple',
+    pill: 'NEW COLLECTION',
+    titleLine1: 'Everyday style,',
+    titleLine2: 'made simple.',
     subtitle:
-      'Clothing and lifestyle essentials — Cash on Delivery, flat-fee delivery and easy exchange.',
-    primaryCta: { label: 'Shop now', href: '/products' },
-    secondaryCta: { label: 'New arrivals', href: '/products?sort=newest' },
+      'Clothing and lifestyle essentials with Cash on Delivery, flat-fee delivery and easy exchange.',
+    primaryCta: { label: 'Shop Now', href: '/products' },
+    secondaryCta: { label: 'Explore Collections', href: '/products?sort=newest' },
   },
 
-  /** Trust strip — every claim here is true for this store. */
+  /** Promo banner copy (home page). */
+  promo: {
+    pill: 'JUST ARRIVED',
+    title: 'New styles every week',
+    text: 'Fresh picks are added to the catalog on a regular basis — browse the latest arrivals.',
+    cta: { label: 'Shop New Arrivals', href: '/products?sort=newest' },
+    badge: 'New in',
+  },
+
+  /** Trust strip + hero features — every claim here is true for this store. */
   trust: [
     { icon: 'cod', title: 'Cash on Delivery', text: 'Pay in cash when your order arrives.' },
-    {
-      icon: 'truck',
-      title: 'Flat-fee delivery',
-      text: 'One flat delivery fee, shown before you order.',
-    },
-    { icon: 'exchange', title: 'Easy exchange', text: 'Simple exchange on eligible items.' },
+    { icon: 'exchange', title: 'Easy Exchange', text: 'Simple exchange on eligible items.' },
+    { icon: 'shield', title: 'Secure Checkout', text: 'Your details stay protected.' },
+    { icon: 'support', title: 'Support', text: 'We are happy to help.' },
   ] as TrustItem[],
+
+  trustStrip: {
+    title: 'Shop with confidence',
+  },
+
+  /** Contact strip (replaces any newsletter row). */
+  contactStrip: {
+    text: "Questions about an order? We're here to help.",
+    cta: { label: 'Contact us', href: '/contact' },
+  },
+
+  /** Home section headings and "View all" links. */
+  sections: {
+    categories: {
+      title: 'Shop by Category',
+      linkLabel: 'View all collections',
+      href: '/products',
+    },
+    newArrivals: {
+      title: 'New Arrivals',
+      linkLabel: 'View all products',
+      href: '/products',
+    },
+  },
 
   /** Main navigation (header bar + mobile menu). */
   nav: [
