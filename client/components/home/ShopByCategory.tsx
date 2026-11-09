@@ -63,9 +63,7 @@ export async function ShopByCategory() {
                   className={`group flex flex-col ${focusClass}`}
                 >
                   <div
-                    className={`relative aspect-[5/6] w-full overflow-hidden rounded-xl border border-transparent transition duration-200 group-hover:-translate-y-0.5 group-hover:border-line group-hover:shadow-sm ${
-                      TILE_TONES[index % TILE_TONES.length]
-                    }`}
+                    className={`relative aspect-[5/6] w-full overflow-hidden rounded-xl border border-line bg-surface transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-sm`}
                   >
                     {category.image ? (
                       <Image
@@ -81,7 +79,11 @@ export async function ShopByCategory() {
                         aria-label={`${category.name} collection`}
                         className="flex h-full w-full items-center justify-center"
                       >
-                        <span className="grid size-12 place-items-center rounded-full bg-white text-brand shadow-sm transition-transform duration-200 group-hover:scale-105">
+                        <span
+                          className={`grid size-12 place-items-center rounded-full text-brand transition-transform duration-200 group-hover:scale-105 ${
+                            TILE_TONES[index % TILE_TONES.length]
+                          }`}
+                        >
                           <Icon className="size-5" />
                         </span>
                       </span>

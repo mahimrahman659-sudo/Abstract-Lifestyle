@@ -18,15 +18,15 @@ export function Hero() {
   const hasHeroImage = hasPublicImage('hero.jpg');
 
   return (
-    <section className="w-full bg-gradient-to-b from-cream to-cream-deep">
-      <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 py-12 sm:px-10 lg:min-h-[440px] lg:grid-cols-2 lg:gap-16 lg:py-16">
-        <div>
-          <p className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink">
+    <section className="w-full border-b border-line bg-paper">
+      <div className="mx-auto grid max-w-[1280px] items-stretch gap-10 px-4 py-10 sm:px-10 lg:grid-cols-[1fr_1.1fr] lg:gap-14 lg:py-14">
+        <div className="flex flex-col justify-center">
+          <p className="inline-flex w-fit items-center gap-1.5 rounded-full bg-tile px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink">
             <StarIcon className="size-3 text-brand" />
             {site.hero.pill}
           </p>
 
-          <h1 className="mt-5 text-[34px] font-bold leading-[1.1] tracking-[-0.02em] text-ink lg:text-[50px]">
+          <h1 className="mt-5 text-[32px] font-bold leading-[1.08] tracking-[-0.02em] text-ink lg:text-[46px]">
             {site.hero.titleLine1}
             <span className="block text-brand">{site.hero.titleLine2}</span>
           </h1>
@@ -51,12 +51,12 @@ export function Hero() {
             </Link>
           </div>
 
-          <ul className="mt-8 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+          <ul className="mt-9 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-line pt-7 sm:grid-cols-4">
             {site.trust.map((item) => {
               const Icon = trustIcons[item.icon];
               return (
                 <li key={item.title} className="flex items-start gap-2.5">
-                  <Icon className="mt-0.5 size-5 shrink-0 text-brand" />
+                  <Icon className="mt-0.5 size-5 shrink-0 text-ink" />
                   <div>
                     <p className="text-[12px] font-semibold text-ink">{item.title}</p>
                     <p className="mt-0.5 text-[11px] leading-relaxed text-muted">{item.text}</p>
@@ -67,22 +67,20 @@ export function Hero() {
           </ul>
         </div>
 
-        {/* Arch-shaped image panel */}
-        <div className="relative mx-auto w-full max-w-[380px] lg:max-w-none">
-          <div className="relative aspect-[4/5] w-full overflow-hidden rounded-t-[200px] rounded-b-3xl bg-cream-deep">
-            {hasHeroImage ? (
-              <Image
-                src="/hero.jpg"
-                alt="Model wearing pieces from the new Abstract Lifestyle collection"
-                fill
-                priority
-                sizes="(max-width: 1024px) 100vw, 40vw"
-                className="object-cover"
-              />
-            ) : (
-              <BrandPanel label="Abstract Lifestyle new collection" caption="New Collection" />
-            )}
-          </div>
+        {/* Image panel */}
+        <div className="relative min-h-[320px] w-full overflow-hidden rounded-2xl bg-cream-deep lg:min-h-[480px]">
+          {hasHeroImage ? (
+            <Image
+              src="/hero.jpg"
+              alt="Model wearing pieces from the new Abstract Lifestyle collection"
+              fill
+              priority
+              sizes="(max-width: 1024px) 100vw, 50vw"
+              className="object-cover"
+            />
+          ) : (
+            <BrandPanel label="Abstract Lifestyle new collection" caption="New Collection" />
+          )}
         </div>
       </div>
     </section>

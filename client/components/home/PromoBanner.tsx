@@ -42,26 +42,26 @@ export function PromoBanner() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="relative h-20 w-32 shrink-0 overflow-hidden rounded-lg bg-white/50 sm:h-24 sm:w-40 lg:h-[100px] lg:w-[160px]">
+          <div className="relative h-28 w-44 shrink-0 overflow-hidden rounded-lg bg-white/50 sm:h-32 sm:w-52 lg:h-36 lg:w-56">
             {hasWide ? (
               <Image
                 src="/promo-1.jpg"
                 alt="A wide look from the latest arrivals"
                 fill
-                sizes="(max-width: 1024px) 160px, 160px"
+                sizes="(max-width: 1024px) 208px, 224px"
                 className="object-cover"
               />
             ) : (
               <BrandPanel compact label="A wide look from the latest arrivals" />
             )}
           </div>
-          <div className="relative h-20 w-[60px] shrink-0 overflow-hidden rounded-lg bg-white/50 sm:h-24 sm:w-[72px] lg:h-[100px] lg:w-[75px]">
+          <div className="relative h-28 w-24 shrink-0 overflow-hidden rounded-lg bg-white/50 sm:h-32 sm:w-28 lg:h-36 lg:w-32">
             {hasPortrait ? (
               <Image
                 src="/promo-2.jpg"
                 alt="A portrait look from the latest arrivals"
                 fill
-                sizes="(max-width: 1024px) 75px, 75px"
+                sizes="(max-width: 1024px) 112px, 128px"
                 className="object-cover"
               />
             ) : (

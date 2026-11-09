@@ -64,13 +64,13 @@ export function ProductCard({ product, isNew }: ProductCardProps) {
   const href = `/products/${product.slug}`;
 
   return (
-    <article className="group flex flex-col">
-      <Link href={href} className={`block rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}>
-        <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-tile">
+    <article className="group flex h-full flex-col overflow-hidden rounded-xl border border-line bg-surface transition-shadow hover:shadow-sm">
+      <Link href={href} className={`block ${focusClass}`}>
+        <div className="relative aspect-square w-full overflow-hidden bg-tile">
           <ProductImage
             src={product.image}
             name={product.name}
-            className="object-contain p-2"
+            className="object-contain p-3"
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
           />
           {isNew ? (
@@ -84,25 +84,29 @@ export function ProductCard({ product, isNew }: ProductCardProps) {
             </span>
           ) : null}
         </div>
-        <h3 className="mt-2 line-clamp-2 text-[13px] font-medium leading-snug text-ink group-hover:underline">
-          {product.name}
-        </h3>
       </Link>
 
-      <div className="mt-1.5 flex items-center justify-between gap-2">
-        <p className="text-[14px] font-bold text-ink">
-          {product.priceFrom === product.priceTo ? (
-            <Price poisha={product.priceFrom} />
-          ) : (
-            <>
-              From <Price poisha={product.priceFrom} />
-            </>
-          )}
-        </p>
+      <div className="flex flex-1 items-end justify-between gap-2 p-3">
+        <div className="min-w-0">
+          <h3 className="line-clamp-2 text-[13px] font-medium leading-snug text-ink">
+            <Link href={href} className={`hover:underline ${focusClass}`}>
+              {product.name}
+            </Link>
+          </h3>
+          <p className="mt-1.5 text-[14px] font-bold text-ink">
+            {product.priceFrom === product.priceTo ? (
+              <Price poisha={product.priceFrom} />
+            ) : (
+              <>
+                From <Price poisha={product.priceFrom} />
+              </>
+            )}
+          </p>
+        </div>
         <Link
           href={href}
           aria-label="View options"
-          className={`flex size-7 shrink-0 items-center justify-center rounded-md border border-line text-ink transition-colors hover:bg-tile ${focusClass}`}
+          className={`flex size-8 shrink-0 items-center justify-center rounded-full border border-line text-ink transition-colors hover:border-ink hover:bg-tile ${focusClass}`}
         >
           <CartIcon className="size-3.5" />
         </Link>
