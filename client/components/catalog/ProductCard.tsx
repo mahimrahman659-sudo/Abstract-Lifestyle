@@ -20,11 +20,16 @@ export function ProductImage({ src, name, className = '', sizes }: ProductImageP
   if (!src) {
     return (
       <div
-        className={`flex h-full w-full items-center justify-center bg-tile text-muted ${className}`}
+        className={`flex h-full w-full items-center justify-center bg-gradient-to-br from-tile to-cream/60 text-muted ${className}`}
         role="img"
         aria-label={`No image available for ${name}`}
       >
-        <svg aria-hidden="true" viewBox="0 0 24 24" className="size-8 fill-none stroke-current" strokeWidth="1.2">
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="size-10 fill-none stroke-current opacity-50"
+          strokeWidth="1.1"
+        >
           <rect x="3" y="5" width="18" height="14" rx="2" />
           <circle cx="9" cy="10" r="1.5" />
           <path d="m5 17 4-4 3 3 3-3 4 4" strokeLinecap="round" strokeLinejoin="round" />

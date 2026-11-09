@@ -151,6 +151,7 @@ export const site = {
     shippingAndReturns:
       'Cash on Delivery on every order. Flat-fee delivery nationwide. Easy exchange on eligible items.',
     trust: ['Cash on Delivery', 'Easy Exchange', 'Secure Checkout'],
+    relatedTitle: 'You may also like',
   },
 
   // OWNER: confirm — replace '#' with the real profile URLs (or remove unused ones).

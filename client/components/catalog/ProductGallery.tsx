@@ -3,6 +3,7 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { ImageZoomDialog } from '@/components/catalog/ImageZoomDialog';
 import { ProductImage } from '@/components/catalog/ProductCard';
+import { BrandPanel } from '@/components/ui/BrandPanel';
 import { cn } from '@/lib/utils/cn';
 
 /**
@@ -44,7 +45,11 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
   return (
     <div className="flex flex-col gap-3">
       <div className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl border border-line bg-tile">
-        <ImageZoomDialog src={current} alt={currentAlt} />
+        {images.length === 0 ? (
+          <BrandPanel label={`${name} — photos coming soon`} caption="Abstract Lifestyle" />
+        ) : (
+          <ImageZoomDialog src={current} alt={currentAlt} />
+        )}
       </div>
       {images.length > 1 ? (
         <ul className="flex gap-2" aria-label="Product images">

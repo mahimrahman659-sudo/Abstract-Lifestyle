@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { ProductImage } from '@/components/catalog/ProductCard';
+import { BrandPanel } from '@/components/ui/BrandPanel';
 import { hasPublicImage } from '@/components/home/local-image';
 import { trustIcons } from '@/components/home/trust-icons';
 import { ArrowRightIcon, StarIcon } from '@/components/ui/icons';
@@ -80,7 +80,7 @@ export function Hero() {
                 className="object-cover"
               />
             ) : (
-              <ProductImage src={null} name="the new collection" />
+              <BrandPanel label="Abstract Lifestyle new collection" caption="New Collection" />
             )}
           </div>
         </div>

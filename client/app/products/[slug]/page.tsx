@@ -4,12 +4,17 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { ProductGallery } from "@/components/catalog/ProductGallery";
 import { NewArrivalBadge } from "@/components/catalog/NewArrivalBadge";
+import { ProductCard } from "@/components/catalog/ProductCard";
 import { ProductTabs } from "@/components/catalog/ProductTabs";
 import { PurchasePanel } from "@/components/catalog/PurchasePanel";
+import { BanknoteIcon, ExchangeIcon, ShieldIcon } from "@/components/ui/icons";
 import { site } from "@/config/site";
-import { fetchProductDetail, getNewBadgeCutoff } from "@/lib/api/server";
+import { fetchProductDetail, getNewBadgeCutoff, getRelatedProducts } from "@/lib/api/server";
 import { isCreatedAfter } from "@/lib/catalog/new-badge";
 import { absoluteUrl, SITE_NAME } from "@/lib/seo";
+
+/** Product-page trust items, in the same order as site.productPage.trust. */
+const productTrustIcons = [BanknoteIcon, ExchangeIcon, ShieldIcon];
 
 interface ProductPageProps {
   params: Promise<{ slug: string }>;
@@ -60,10 +65,14 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
 
   const { product, variants, sizeGuideKey } = detail;
 
-  // "New Arrival" flag: computed here from the cached server-side cutoff
-  // snapshot and passed down as a prop — no component reads the clock during
+  // "New Arrival" flags: computed here from the cached server-side cutoff
+  // snapshot and passed down as props — no component reads the clock during
   // render, so nothing can cause a hydration mismatch or force dynamic output.
-  const isNew = isCreatedAfter(product.createdAt, await getNewBadgeCutoff());
+  const newCutoff = await getNewBadgeCutoff();
+  const isNew = isCreatedAfter(product.createdAt, newCutoff);
+
+  // Related products never block the page: any failure yields an empty array.
+  const related = await getRelatedProducts(product.category?.slug ?? '', product.slug);
 
   const variantPrices = variants.map((variant) => variant.price);
   const lowPrice = variantPrices.length > 0 ? Math.min(...variantPrices) : product.basePrice;
@@ -149,20 +158,50 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
           </h1>
           <NewArrivalBadge isNew={isNew} />
 
-          <ProductTabs
-            description={product.description}
-            sizeGuideKey={sizeGuideKey}
-            shippingText={site.productPage.shippingAndReturns}
-          />
-
           <PurchasePanel
             productName={product.name}
             basePrice={product.basePrice}
             variants={variants}
             sizeGuideKey={sizeGuideKey}
           />
+
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {site.productPage.trust.map((label, index) => {
+              const Icon = productTrustIcons[index] ?? ShieldIcon;
+              return (
+                <li
+                  key={label}
+                  className="flex items-center gap-2 rounded-md border border-line bg-surface px-3 py-2 text-[11px] font-medium text-ink"
+                >
+                  <Icon className="size-4 shrink-0 text-brand" />
+                  {label}
+                </li>
+              );
+            })}
+          </ul>
+
+          <ProductTabs
+            description={product.description}
+            sizeGuideKey={sizeGuideKey}
+            shippingText={site.productPage.shippingAndReturns}
+          />
         </div>
       </div>
+
+      {related.length > 0 ? (
+        <section aria-labelledby="related-products-heading" className="mt-14 border-t border-line pt-10">
+          <h2 id="related-products-heading" className="text-xl font-semibold tracking-tight text-ink">
+            {site.productPage.relatedTitle}
+          </h2>
+          <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
+            {related.map((item) => (
+              <li key={item.id}>
+                <ProductCard product={item} isNew={isCreatedAfter(item.createdAt, newCutoff)} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

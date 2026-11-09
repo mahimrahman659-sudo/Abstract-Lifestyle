@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { ProductImage } from '@/components/catalog/ProductCard';
+import { BrandPanel } from '@/components/ui/BrandPanel';
 import { hasPublicImage } from '@/components/home/local-image';
 import { ArrowRightIcon } from '@/components/ui/icons';
 import { site } from '@/config/site';
@@ -52,7 +52,7 @@ export function PromoBanner() {
                 className="object-cover"
               />
             ) : (
-              <ProductImage src={null} name="a latest-arrivals look" />
+              <BrandPanel compact label="A wide look from the latest arrivals" />
             )}
           </div>
           <div className="relative h-20 w-[60px] shrink-0 overflow-hidden rounded-lg bg-white/50 sm:h-24 sm:w-[72px] lg:h-[100px] lg:w-[75px]">
@@ -65,7 +65,7 @@ export function PromoBanner() {
                 className="object-cover"
               />
             ) : (
-              <ProductImage src={null} name="a latest-arrivals look" />
+              <BrandPanel compact label="A portrait look from the latest arrivals" />
             )}
           </div>
         </div>
