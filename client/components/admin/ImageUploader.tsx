@@ -9,7 +9,16 @@ import { adminApi } from '@/lib/api/admin';
 import { ApiError } from '@/lib/api/client';
 import type { AdminImageAsset } from '@/lib/types';
 
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const ACCEPTED_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'image/avif',
+  'image/bmp',
+  'image/tiff',
+];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGES = 10;
 
@@ -41,8 +50,11 @@ export function ImageUploader({ images, onChange, disabled = false }: ImageUploa
     const problems: string[] = [];
     const valid: File[] = [];
     for (const file of files) {
-      if (!ACCEPTED_TYPES.includes(file.type)) {
-        problems.push(`${file.name}: only JPEG, PNG or WebP is allowed`);
+      // Unknown/empty MIME types pass here — the server verifies content.
+      if (file.type && !ACCEPTED_TYPES.includes(file.type)) {
+        problems.push(
+          `${file.name}: only image files are allowed (JPEG, PNG, WebP, HEIC, AVIF, BMP or TIFF)`,
+        );
       } else if (file.size > MAX_BYTES) {
         problems.push(`${file.name}: must be 5 MB or smaller`);
       } else {
@@ -122,7 +134,7 @@ export function ImageUploader({ images, onChange, disabled = false }: ImageUploa
         </Button>
         {uploading ? <Spinner label="Uploading images" /> : null}
         <label htmlFor="image-file-input" className="text-xs text-muted">
-          JPEG, PNG or WebP · max 5 MB each · up to 10
+          JPEG, PNG, WebP, HEIC, AVIF, BMP or TIFF · max 5 MB each · up to 10
         </label>
       </div>
 

@@ -3,11 +3,21 @@ import { cloudinary, CLOUDINARY_FOLDER, isCloudinaryConfigured } from '../config
 import { AppError } from '../middleware/error-handler.js';
 import type { ImageAsset } from '../utils/images.js';
 
-type SupportedImageType = 'jpeg' | 'png' | 'webp';
+type SupportedImageType = 'jpeg' | 'png' | 'webp' | 'heic' | 'avif' | 'bmp' | 'tiff';
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-/** Detects the real image type from file content (magic bytes), never from names. */
+/** ISO-BMFF `ftyp` major brands that mean HEIC/HEIF. */
+const HEIF_BRANDS = ['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'mif1', 'msf1'];
+
+/** ISO-BMFF `ftyp` major brands that mean AVIF. */
+const AVIF_BRANDS = ['avif', 'avis'];
+
+/**
+ * Detects the real image type from file content (magic bytes), never from names
+ * or browser MIME hints — so renamed files (e.g. an iPhone HEIC saved as .jpg)
+ * are still recognized.
+ */
 export const detectImageType = (buffer: Buffer): SupportedImageType | null => {
   if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
     return 'jpeg';
@@ -22,13 +32,43 @@ export const detectImageType = (buffer: Buffer): SupportedImageType | null => {
   ) {
     return 'webp';
   }
+  // ISO-BMFF container: bytes 4–8 are 'ftyp', bytes 8–12 the major brand.
+  if (buffer.length >= 12 && buffer.subarray(4, 8).toString('ascii') === 'ftyp') {
+    const brand = buffer.subarray(8, 12).toString('ascii');
+    if (AVIF_BRANDS.includes(brand)) {
+      return 'avif';
+    }
+    if (HEIF_BRANDS.includes(brand)) {
+      return 'heic';
+    }
+    return null;
+  }
+  if (buffer.length >= 14 && buffer[0] === 0x42 && buffer[1] === 0x4d) {
+    return 'bmp';
+  }
+  if (
+    buffer.length >= 4 &&
+    ((buffer[0] === 0x49 && buffer[1] === 0x49 && buffer[2] === 0x2a && buffer[3] === 0x00) ||
+      (buffer[0] === 0x4d && buffer[1] === 0x4d && buffer[2] === 0x00 && buffer[3] === 0x2a))
+  ) {
+    return 'tiff';
+  }
   return null;
 };
 
+/**
+ * Upload format per detected type. Camera/web formats (HEIC, AVIF, BMP, TIFF)
+ * are converted to jpeg on upload so the storefront always serves web-safe
+ * images; jpeg/png/webp keep their original format.
+ */
 const FORMAT_BY_TYPE: Record<SupportedImageType, string> = {
   jpeg: 'jpg',
   png: 'png',
   webp: 'webp',
+  heic: 'jpg',
+  avif: 'jpg',
+  bmp: 'jpg',
+  tiff: 'jpg',
 };
 
 /** Uploads one verified buffer to Cloudinary; the public_id is generated server-side. */
@@ -90,7 +130,11 @@ export const saveImages = async (files: Express.Multer.File[]): Promise<ImageAss
   for (const file of files) {
     const type = detectImageType(file.buffer);
     if (!type) {
-      throw new AppError(400, 'VALIDATION_ERROR', 'File content is not a jpeg, png or webp image');
+      throw new AppError(
+        400,
+        'VALIDATION_ERROR',
+        'File content is not a supported image (jpeg, png, webp, heic, avif, bmp or tiff)',
+      );
     }
     detected.push({ buffer: file.buffer, type });
   }

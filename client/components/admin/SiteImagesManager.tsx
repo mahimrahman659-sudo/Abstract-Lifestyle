@@ -95,8 +95,12 @@ export function SiteImagesManager() {
     if (!file) {
       return;
     }
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      setNotice({ tone: 'error', message: `${file.name}: only JPEG, PNG or WebP is allowed.` });
+    // Unknown/empty MIME types pass here — the server verifies content.
+    if (file.type && !ACCEPTED_TYPES.includes(file.type)) {
+      setNotice({
+        tone: 'error',
+        message: `${file.name}: only image files are allowed (JPEG, PNG, WebP, HEIC, AVIF, BMP or TIFF).`,
+      });
       return;
     }
     if (file.size > MAX_BYTES) {
