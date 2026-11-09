@@ -62,9 +62,13 @@ export const adminApi = {
   updateProduct: (id: string, payload: Partial<CreateProductPayload>) =>
     apiFetch<{ product: AdminProduct }>(`/admin/products/${id}`, { method: 'PATCH', body: payload }),
   deleteProduct: (id: string) =>
-    apiFetch<{ product?: AdminProduct; archived?: boolean }>(`/admin/products/${id}`, {
-      method: 'DELETE',
-    }),
+    // 204 (hard delete) resolves to `undefined`; the archive case returns a body.
+    apiFetch<{ product?: AdminProduct; archived?: boolean } | undefined>(
+      `/admin/products/${id}`,
+      {
+        method: 'DELETE',
+      },
+    ),
 
   // Variants
   createVariant: (productId: string, payload: VariantPayload) =>

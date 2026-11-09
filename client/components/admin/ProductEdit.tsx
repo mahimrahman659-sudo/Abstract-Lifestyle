@@ -139,7 +139,7 @@ export function ProductEdit({ productId }: { productId: string }) {
     void (async () => {
       try {
         const result = await adminApi.deleteProduct(productId);
-        if (result.archived) {
+        if (result?.archived) {
           await reload();
           setNotice({
             tone: 'info',
@@ -147,6 +147,7 @@ export function ProductEdit({ productId }: { productId: string }) {
               'This product is referenced by existing orders, so it was archived instead of deleted. It no longer appears on the storefront.',
           });
         } else {
+          // 204 No Content = hard delete succeeded (no response body to read).
           router.push('/admin/products');
         }
       } catch (error) {
