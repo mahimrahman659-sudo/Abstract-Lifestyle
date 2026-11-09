@@ -53,6 +53,8 @@ export interface ProductDetailProduct {
   category: ProductCardCategory | null;
   basePrice: number;
   images: string[];
+  /** ISO 8601 creation timestamp — gates the "New Arrival" flag (last 14 days). */
+  createdAt: string;
 }
 
 export interface ProductDetail {

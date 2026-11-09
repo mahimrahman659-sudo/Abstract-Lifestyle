@@ -37,6 +37,7 @@ Codes: `VALIDATION_ERROR` 400 · `UNAUTHORIZED` 401 · `FORBIDDEN` 403 · `NOT_F
 
 ProductCard: `{ id, name, slug, category, image, priceFrom, priceTo, sizes[], colors[], inStock, createdAt }` (`createdAt` = ISO 8601 creation timestamp; the client uses it to show a "New" badge only for products created within the last 14 days)
 Variant: `{ id, sku, size, color, price (effective), stock, inStock, lowStock, images[] }` (`lowStock` = stock ≤ lowStockThreshold and > 0).
+Product (detail): `{ id, name, slug, description, category, basePrice, images[], createdAt }` (`createdAt` = ISO 8601 creation timestamp; the client uses it to show a "New Arrival" flag only for products created within the last 14 days).
 
 ## Cart (customer — server-side cart)
 | Endpoint | Request | Response |

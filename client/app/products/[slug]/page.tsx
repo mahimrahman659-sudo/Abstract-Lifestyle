@@ -3,8 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { ProductGallery } from "@/components/catalog/ProductGallery";
+import { NewArrivalBadge } from "@/components/catalog/NewArrivalBadge";
+import { ProductTabs } from "@/components/catalog/ProductTabs";
 import { PurchasePanel } from "@/components/catalog/PurchasePanel";
-import { fetchProductDetail } from "@/lib/api/server";
+import { site } from "@/config/site";
+import { fetchProductDetail, getNewBadgeCutoff } from "@/lib/api/server";
+import { isCreatedAfter } from "@/lib/catalog/new-badge";
 import { absoluteUrl, SITE_NAME } from "@/lib/seo";
 
 interface ProductPageProps {
@@ -55,6 +59,11 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
   }
 
   const { product, variants, sizeGuideKey } = detail;
+
+  // "New Arrival" flag: computed here from the cached server-side cutoff
+  // snapshot and passed down as a prop — no component reads the clock during
+  // render, so nothing can cause a hydration mismatch or force dynamic output.
+  const isNew = isCreatedAfter(product.createdAt, await getNewBadgeCutoff());
 
   const variantPrices = variants.map((variant) => variant.price);
   const lowPrice = variantPrices.length > 0 ? Math.min(...variantPrices) : product.basePrice;
@@ -138,7 +147,13 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
           <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
             {product.name}
           </h1>
-          <p className="text-sm leading-relaxed text-muted">{product.description}</p>
+          <NewArrivalBadge isNew={isNew} />
+
+          <ProductTabs
+            description={product.description}
+            sizeGuideKey={sizeGuideKey}
+            shippingText={site.productPage.shippingAndReturns}
+          />
 
           <PurchasePanel
             productName={product.name}

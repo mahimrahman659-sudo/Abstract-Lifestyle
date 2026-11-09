@@ -145,6 +145,14 @@ export const site = {
     payment: 'Cash on Delivery',
   },
 
+  /** Product detail page — tab + trust copy. */
+  productPage: {
+    // OWNER: confirm — these statements must match the store's real policies before launch.
+    shippingAndReturns:
+      'Cash on Delivery on every order. Flat-fee delivery nationwide. Easy exchange on eligible items.',
+    trust: ['Cash on Delivery', 'Easy Exchange', 'Secure Checkout'],
+  },
+
   // OWNER: confirm — replace '#' with the real profile URLs (or remove unused ones).
   socials: [
     { label: 'Facebook', href: '#' },

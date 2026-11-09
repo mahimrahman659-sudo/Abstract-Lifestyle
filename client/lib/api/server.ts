@@ -72,3 +72,31 @@ export const fetchCategorySlugsForSitemap = async (): Promise<string[]> => {
   }
 };
 
+/**
+ * Related products for the product detail page: newest products in the same
+ * category via the existing list endpoint, excluding the current product.
+ * Never throws — related products must not break the page, so any error (API
+ * down, bad response) yields an empty array.
+ */
+export const getRelatedProducts = async (
+  categorySlug: string,
+  excludeSlug: string,
+): Promise<ProductCard[]> => {
+  if (!categorySlug) {
+    return [];
+  }
+  try {
+    const response = await fetch(
+      `${API_URL}/api/products?category=${encodeURIComponent(categorySlug)}&sort=newest&limit=5`,
+      { next: { revalidate: 60 } },
+    );
+    if (!response.ok) {
+      return [];
+    }
+    const data = (await response.json()) as ListEnvelope<ProductCard>;
+    return data.items.filter((item) => item.slug !== excludeSlug).slice(0, 4);
+  } catch {
+    return [];
+  }
+};
+

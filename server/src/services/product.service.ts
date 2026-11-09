@@ -57,6 +57,8 @@ export interface ProductDetail {
     category: ProductCardCategory | null;
     basePrice: number;
     images: string[];
+    /** Creation timestamp (ISO 8601) — public; used for the "New Arrival" flag. */
+    createdAt: string;
   };
   variants: PublicVariant[];
   sizeGuideKey: 'clothing' | null;
@@ -301,6 +303,7 @@ export const getProductBySlug = async (slug: string): Promise<ProductDetail> => 
         : null,
       basePrice: product.basePrice,
       images: imageUrls(product.images),
+      createdAt: product.createdAt.toISOString(),
     },
     variants: variants.map((variant) => ({
       id: variant._id.toString(),
