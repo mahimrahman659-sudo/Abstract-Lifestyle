@@ -4,10 +4,12 @@ import { useMemo, useState } from 'react';
 import { useCart } from '@/components/cart/CartProvider';
 import { SizeGuideDialog } from '@/components/catalog/SizeGuideDialog';
 import { Button } from '@/components/ui/Button';
+import { CartIcon } from '@/components/ui/icons';
 import { Input } from '@/components/ui/Input';
 import { Notice, type NoticeTone } from '@/components/ui/Notice';
 import { Price } from '@/components/ui/Price';
 import { ApiError } from '@/lib/api/client';
+import { getSwatchColor } from '@/lib/catalog/color-map';
 import type { PublicVariant } from '@/lib/types';
 import { cn } from '@/lib/utils/cn';
 
@@ -16,6 +18,8 @@ interface PurchasePanelProps {
   basePrice: number;
   variants: PublicVariant[];
   sizeGuideKey: 'clothing' | null;
+  /** Short description shown under the price (full text lives in the tabs). */
+  description?: string;
 }
 
 interface PanelNotice {
@@ -41,6 +45,7 @@ export function PurchasePanel({
   basePrice,
   variants,
   sizeGuideKey,
+  description,
 }: PurchasePanelProps) {
   const { addItem, serverCart } = useCart();
   const sizes = useMemo(() => uniqueOptions(variants.map((variant) => variant.size)), [variants]);
@@ -130,109 +135,142 @@ export function PurchasePanel({
   const outOfStock = !selectedVariant || selectedVariant.stock === 0;
 
   return (
-    <div className="flex flex-col gap-5">
-      <p className="text-xl font-semibold text-ink">
-        <Price poisha={selectedVariant ? selectedVariant.price : basePrice} />
-      </p>
-
-      {selectedVariant ? (
-        <p
-          className={cn(
-            'text-sm',
-            selectedVariant.stock === 0
-              ? 'text-danger'
-              : selectedVariant.lowStock
-                ? 'text-warning'
-                : 'text-success',
-          )}
-          aria-live="polite"
-        >
-          {stockLabel(selectedVariant)}
+    <div className="flex flex-col gap-4">
+      <div>
+        <p className="text-2xl font-bold tracking-tight text-ink">
+          <Price poisha={selectedVariant ? selectedVariant.price : basePrice} />
         </p>
-      ) : null}
-
-      {sizes.length > 0 ? (
-        <fieldset>
-          <legend className="mb-2 text-sm font-semibold text-ink">Size</legend>
-          <div className="flex flex-wrap gap-2">
-            {sizes.map((size) => {
-              const available = isSizeAvailable(size);
-              const active = selection.size === size;
-              return (
-                <button
-                  key={size}
-                  type="button"
-                  aria-pressed={active}
-                  disabled={!available}
-                  onClick={() => selectSize(size)}
-                  className={cn(
-                    'min-w-12 rounded-full border px-4 py-2 text-sm',
-                    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-                    active ? 'border-accent bg-accent text-white' : 'border-line text-ink',
-                    !available && 'cursor-not-allowed text-muted line-through opacity-50',
-                  )}
-                >
-                  {size}
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
-      ) : null}
-
-      {colors.length > 0 ? (
-        <fieldset>
-          <legend className="mb-2 text-sm font-semibold text-ink">Color</legend>
-          <div className="flex flex-wrap gap-2">
-            {colors.map((color) => {
-              const available = isColorAvailable(color);
-              const active = selection.color === color;
-              return (
-                <button
-                  key={color}
-                  type="button"
-                  aria-pressed={active}
-                  disabled={!available}
-                  onClick={() => selectColor(color)}
-                  className={cn(
-                    'rounded-full border px-4 py-2 text-sm',
-                    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-                    active ? 'border-accent bg-accent text-white' : 'border-line text-ink',
-                    !available && 'cursor-not-allowed text-muted line-through opacity-50',
-                  )}
-                >
-                  {color}
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
-      ) : null}
-
-      <div className="flex items-end gap-3">
-        <div className="w-28">
-          <Input
-            label="Quantity"
-            type="number"
-            min={1}
-            max={20}
-            value={quantity}
-            onChange={(event) => setQuantity(Number(event.target.value))}
-          />
-        </div>
-        {sizeGuideKey === 'clothing' ? <SizeGuideDialog /> : null}
+        {selectedVariant ? (
+          <p
+            className={cn(
+              'mt-1 text-sm',
+              selectedVariant.stock === 0
+                ? 'text-danger'
+                : selectedVariant.lowStock
+                  ? 'text-warning'
+                  : 'text-success',
+            )}
+            aria-live="polite"
+          >
+            {stockLabel(selectedVariant)}
+          </p>
+        ) : null}
       </div>
 
-      <Button
-        size="lg"
-        onClick={() => void handleAddToCart()}
-        disabled={outOfStock}
-        loading={adding}
-      >
-        {outOfStock ? 'Out of stock' : 'Add to cart'}
-      </Button>
+      {description ? <p className="text-sm leading-relaxed text-muted">{description}</p> : null}
 
-      {notice ? <Notice tone={notice.tone}>{notice.message}</Notice> : null}
+      <div className="border-t border-line pt-4">
+        {colors.length > 0 ? (
+          <fieldset>
+            <legend className="mb-3 text-sm text-ink">
+              Color: <span className="font-semibold">{selection.color ?? '—'}</span>
+            </legend>
+            <div className="flex flex-wrap gap-3">
+              {colors.map((color) => {
+                const available = isColorAvailable(color);
+                const active = selection.color === color;
+                const swatch = getSwatchColor(color);
+                return (
+                  <button
+                    key={color}
+                    type="button"
+                    aria-label={color}
+                    aria-pressed={active}
+                    disabled={!available}
+                    onClick={() => selectColor(color)}
+                    style={swatch ? { backgroundColor: swatch } : undefined}
+                    className={cn(
+                      'size-10 rounded-full border transition',
+                      'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                      active ? 'border-ink ring-2 ring-ink ring-offset-2' : 'border-line',
+                      !swatch && 'bg-tile',
+                      !available && 'cursor-not-allowed opacity-40',
+                    )}
+                  >
+                    {!swatch ? (
+                      <span className="text-[9px] font-semibold uppercase text-muted">
+                        {color.slice(0, 3)}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+        ) : null}
+
+        {sizes.length > 0 ? (
+          <div className="mt-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="text-sm text-ink">
+                Size: <span className="font-semibold">{selection.size ?? '—'}</span>
+              </p>
+              {sizeGuideKey === 'clothing' ? <SizeGuideDialog /> : null}
+            </div>
+            <fieldset>
+              <legend className="sr-only">Size</legend>
+              <div className="flex flex-wrap gap-2">
+                {sizes.map((size) => {
+                  const available = isSizeAvailable(size);
+                  const active = selection.size === size;
+                  return (
+                    <button
+                      key={size}
+                      type="button"
+                      aria-pressed={active}
+                      disabled={!available}
+                      onClick={() => selectSize(size)}
+                      className={cn(
+                        'min-w-12 rounded-md border px-4 py-2 text-sm transition',
+                        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                        active
+                          ? 'border-ink bg-ink text-white'
+                          : 'border-line bg-surface text-ink hover:border-ink',
+                        !available && 'cursor-not-allowed text-muted line-through opacity-50 hover:border-line',
+                      )}
+                    >
+                      {size}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+          </div>
+        ) : null}
+
+        <div className="mt-5 flex items-end gap-3">
+          <div className="w-28">
+            <Input
+              label="Quantity"
+              type="number"
+              min={1}
+              max={20}
+              value={quantity}
+              onChange={(event) => setQuantity(Number(event.target.value))}
+            />
+          </div>
+          {sizes.length === 0 && sizeGuideKey === 'clothing' ? <SizeGuideDialog /> : null}
+        </div>
+
+        <Button
+          variant="dark"
+          size="lg"
+          radius="md"
+          className="mt-5 w-full"
+          onClick={() => void handleAddToCart()}
+          disabled={outOfStock}
+          loading={adding}
+        >
+          <CartIcon className="size-5" />
+          {outOfStock ? 'Out of stock' : 'Add to cart'}
+        </Button>
+
+        {notice ? (
+          <div className="mt-4">
+            <Notice tone={notice.tone}>{notice.message}</Notice>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

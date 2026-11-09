@@ -4,14 +4,16 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { ProductGallery } from "@/components/catalog/ProductGallery";
 import { NewArrivalBadge } from "@/components/catalog/NewArrivalBadge";
-import { ProductCard } from "@/components/catalog/ProductCard";
+import { ProductCard, ProductImage } from "@/components/catalog/ProductCard";
 import { ProductTabs } from "@/components/catalog/ProductTabs";
 import { PurchasePanel } from "@/components/catalog/PurchasePanel";
-import { BanknoteIcon, ExchangeIcon, ShieldIcon } from "@/components/ui/icons";
+import { BrandPanel } from "@/components/ui/BrandPanel";
+import { ArrowRightIcon, BanknoteIcon, ExchangeIcon, ShieldIcon } from "@/components/ui/icons";
 import { site } from "@/config/site";
-import { fetchProductDetail, getNewBadgeCutoff, getRelatedProducts } from "@/lib/api/server";
+import { fetchCategoryTree, fetchProductDetail, getNewBadgeCutoff, getRelatedProducts } from "@/lib/api/server";
 import { isCreatedAfter } from "@/lib/catalog/new-badge";
 import { absoluteUrl, SITE_NAME } from "@/lib/seo";
+import type { CategoryTreeItem } from "@/lib/types";
 
 /** Product-page trust items, in the same order as site.productPage.trust. */
 const productTrustIcons = [BanknoteIcon, ExchangeIcon, ShieldIcon];
@@ -71,8 +73,34 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
   const newCutoff = await getNewBadgeCutoff();
   const isNew = isCreatedAfter(product.createdAt, newCutoff);
 
-  // Related products never block the page: any failure yields an empty array.
-  const related = await getRelatedProducts(product.category?.slug ?? '', product.slug);
+  // Related products: resolve the root category so sibling collections show up
+  // (the helper itself is a plain "same category" query that never throws).
+  const categoryTree = await fetchCategoryTree().catch(() => [] as CategoryTreeItem[]);
+  const leafSlug = product.category?.slug ?? '';
+  let relatedSlug = leafSlug;
+  for (const root of categoryTree) {
+    if (root.slug === leafSlug || root.children.some((child) => child.slug === leafSlug)) {
+      relatedSlug = root.slug;
+      break;
+    }
+  }
+  const related = await getRelatedProducts(relatedSlug, product.slug);
+
+  const uniqueSizes = Array.from(
+    new Set(variants.map((variant) => variant.size).filter((size): size is string => size !== null)),
+  );
+  const uniqueColors = Array.from(
+    new Set(variants.map((variant) => variant.color).filter((color): color is string => color !== null)),
+  );
+  // True-fact bullets for the Details tab (no invented claims).
+  const highlights = [
+    product.category ? `${product.category.name} collection` : null,
+    uniqueSizes.length > 0 ? `Available in sizes ${uniqueSizes.join(', ')}` : null,
+    uniqueColors.length > 0 ? `Colors: ${uniqueColors.join(', ')}` : null,
+    'Cash on Delivery',
+  ].filter((item): item is string => item !== null);
+
+  const detailImage = product.images[1] ?? product.images[0] ?? null;
 
   const variantPrices = variants.map((variant) => variant.price);
   const lowPrice = variantPrices.length > 0 ? Math.min(...variantPrices) : product.basePrice;
@@ -148,51 +176,70 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
         <ProductGallery images={product.images} name={product.name} />
 
         <div className="flex flex-col gap-4">
-          {product.category ? (
-            <p className="text-xs uppercase tracking-[0.2em] text-muted">
-              {product.category.name}
-            </p>
-          ) : null}
-          <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+          <NewArrivalBadge isNew={isNew} />
+          <h1 className="text-3xl font-bold leading-[1.1] tracking-[-0.02em] text-ink sm:text-[38px]">
             {product.name}
           </h1>
-          <NewArrivalBadge isNew={isNew} />
 
           <PurchasePanel
             productName={product.name}
             basePrice={product.basePrice}
             variants={variants}
             sizeGuideKey={sizeGuideKey}
+            description={product.description}
           />
 
-          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {site.productPage.trust.map((label, index) => {
+          <ul className="grid grid-cols-1 gap-3 border-t border-line pt-5 sm:grid-cols-3">
+            {site.productPage.trust.map((item, index) => {
               const Icon = productTrustIcons[index] ?? ShieldIcon;
               return (
-                <li
-                  key={label}
-                  className="flex items-center gap-2 rounded-md border border-line bg-surface px-3 py-2 text-[11px] font-medium text-ink"
-                >
-                  <Icon className="size-4 shrink-0 text-brand" />
-                  {label}
+                <li key={item.title} className="flex items-start gap-2.5">
+                  <Icon className="mt-0.5 size-4 shrink-0 text-ink" />
+                  <div>
+                    <p className="text-[12px] font-semibold text-ink">{item.title}</p>
+                    <p className="mt-0.5 text-[11px] leading-snug text-muted">{item.text}</p>
+                  </div>
                 </li>
               );
             })}
           </ul>
-
-          <ProductTabs
-            description={product.description}
-            sizeGuideKey={sizeGuideKey}
-            shippingText={site.productPage.shippingAndReturns}
-          />
         </div>
       </div>
 
+      {/* Details tabs + lifestyle image */}
+      <section
+        aria-label="Product details"
+        className="mt-14 grid gap-10 border-t border-line pt-10 lg:grid-cols-2 lg:gap-14"
+      >
+        <ProductTabs
+          description={product.description}
+          highlights={highlights}
+          sizeGuideKey={sizeGuideKey}
+          shippingText={site.productPage.shippingAndReturns}
+        />
+        <div className="relative min-h-[260px] w-full overflow-hidden rounded-2xl border border-line bg-tile lg:min-h-[340px]">
+          {detailImage ? (
+            <ProductImage src={detailImage} name={product.name} />
+          ) : (
+            <BrandPanel label={`${product.name} — collection artwork`} caption="Abstract Lifestyle" />
+          )}
+        </div>
+      </section>
+
       {related.length > 0 ? (
         <section aria-labelledby="related-products-heading" className="mt-14 border-t border-line pt-10">
-          <h2 id="related-products-heading" className="text-xl font-semibold tracking-tight text-ink">
-            {site.productPage.relatedTitle}
-          </h2>
+          <div className="flex items-center justify-between gap-4">
+            <h2 id="related-products-heading" className="text-xl font-semibold tracking-tight text-ink">
+              {site.productPage.relatedTitle}
+            </h2>
+            <Link
+              href="/products"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:text-brand-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              {site.productPage.relatedLinkLabel}
+              <ArrowRightIcon className="size-4" />
+            </Link>
+          </div>
           <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
             {related.map((item) => (
               <li key={item.id}>

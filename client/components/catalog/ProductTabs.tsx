@@ -2,24 +2,34 @@
 
 import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { SizeGuideContent } from '@/components/catalog/SizeGuideContent';
+import { BanknoteIcon, BagIcon, ShirtIcon, TagIcon } from '@/components/ui/icons';
 import { cn } from '@/lib/utils/cn';
 
 interface ProductTabsProps {
   /** Product description — the "Details" panel. */
   description: string;
+  /** Optional true-fact bullets shown under the description. */
+  highlights?: string[];
   /** The "Size & Fit" tab only appears when the server resolved a size guide. */
   sizeGuideKey: 'clothing' | null;
   /** Shipping & returns copy from config/site.ts. */
   shippingText: string;
 }
 
+/** Icons for the detail bullets, in render order. */
+const highlightIcons = [ShirtIcon, TagIcon, BagIcon, BanknoteIcon];
+
 /**
  * Accessible product tabs (Details / Size & Fit / Shipping & Returns):
  * tablist with roving tabindex, ArrowLeft/ArrowRight/Home/End navigation and
- * automatic activation; panels are labelled tabpanels. Unstyled beyond the
- * existing design tokens — the redesign restyles it later.
+ * automatic activation; panels are labelled tabpanels.
  */
-export function ProductTabs({ description, sizeGuideKey, shippingText }: ProductTabsProps) {
+export function ProductTabs({
+  description,
+  highlights = [],
+  sizeGuideKey,
+  shippingText,
+}: ProductTabsProps) {
   const baseId = useId();
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const tabs = [
@@ -52,7 +62,7 @@ export function ProductTabs({ description, sizeGuideKey, shippingText }: Product
 
   return (
     <div>
-      <div role="tablist" aria-label="Product information" className="flex flex-wrap gap-1 border-b border-line">
+      <div role="tablist" aria-label="Product information" className="flex flex-wrap gap-6 border-b border-line">
         {tabs.map((tab, index) => (
           <button
             key={tab.key}
@@ -68,10 +78,10 @@ export function ProductTabs({ description, sizeGuideKey, shippingText }: Product
             onClick={() => setActive(tab.key)}
             onKeyDown={(event) => handleTabKeyDown(event, index)}
             className={cn(
-              'border-b-2 px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+              '-mb-px border-b-2 pb-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
               active === tab.key
-                ? 'border-accent text-ink'
-                : 'border-transparent text-muted hover:text-ink',
+                ? 'border-ink font-semibold text-ink'
+                : 'border-transparent font-medium text-muted hover:text-ink',
             )}
           >
             {tab.label}
@@ -87,9 +97,26 @@ export function ProductTabs({ description, sizeGuideKey, shippingText }: Product
           aria-labelledby={`${baseId}-tab-${tab.key}`}
           hidden={active !== tab.key}
           tabIndex={0}
-          className="pt-3 text-sm leading-relaxed text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="pt-5 text-sm leading-relaxed text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          {tab.key === 'details' ? <p>{description}</p> : null}
+          {tab.key === 'details' ? (
+            <>
+              <p>{description}</p>
+              {highlights.length > 0 ? (
+                <ul className="mt-4 space-y-2">
+                  {highlights.map((item, index) => {
+                    const Icon = highlightIcons[index % highlightIcons.length];
+                    return (
+                      <li key={item} className="flex items-center gap-2.5 text-[13px] text-ink">
+                        <Icon className="size-4 shrink-0 text-muted" />
+                        {item}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </>
+          ) : null}
           {tab.key === 'size-fit' ? <SizeGuideContent /> : null}
           {tab.key === 'shipping' ? <p>{shippingText}</p> : null}
         </div>

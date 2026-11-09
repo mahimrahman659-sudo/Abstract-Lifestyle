@@ -16,8 +16,7 @@ export function NewArrivalBadge({ isNew }: NewArrivalBadgeProps) {
   }
 
   return (
-    <span className="inline-flex w-fit items-center gap-1.5 self-start rounded-full bg-brand px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">
-      <span aria-hidden="true" className="size-1.5 rounded-full bg-white/80" />
+    <span className="inline-flex w-fit items-center self-start rounded-md bg-[#f1f1ef] px-2.5 py-1 text-[11px] font-medium text-ink">
       New Arrival
     </span>
   );

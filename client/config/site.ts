@@ -150,8 +150,13 @@ export const site = {
     // OWNER: confirm — these statements must match the store's real policies before launch.
     shippingAndReturns:
       'Cash on Delivery on every order. Flat-fee delivery nationwide. Easy exchange on eligible items.',
-    trust: ['Cash on Delivery', 'Easy Exchange', 'Secure Checkout'],
+    trust: [
+      { title: 'Cash on Delivery', text: 'Pay in cash when your order arrives.' },
+      { title: 'Easy Exchange', text: 'Simple exchange on eligible items.' },
+      { title: 'Secure Checkout', text: 'Your details stay protected.' },
+    ],
     relatedTitle: 'You may also like',
+    relatedLinkLabel: 'View all',
   },
 
   // OWNER: confirm — replace '#' with the real profile URLs (or remove unused ones).

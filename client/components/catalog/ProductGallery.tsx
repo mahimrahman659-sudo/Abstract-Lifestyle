@@ -43,16 +43,9 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl border border-line bg-tile">
-        {images.length === 0 ? (
-          <BrandPanel label={`${name} — photos coming soon`} caption="Abstract Lifestyle" />
-        ) : (
-          <ImageZoomDialog src={current} alt={currentAlt} />
-        )}
-      </div>
+    <div className="flex gap-3 sm:gap-4">
       {images.length > 1 ? (
-        <ul className="flex gap-2" aria-label="Product images">
+        <ul className="flex w-16 shrink-0 flex-col gap-3 sm:w-[72px]" aria-label="Product images">
           {images.map((image, index) => (
             <li key={`${image}-${index}`}>
               <button
@@ -66,8 +59,8 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
                 onClick={() => setSelected(index)}
                 onKeyDown={(event) => handleThumbnailKeyDown(event, index)}
                 className={cn(
-                  'relative block size-16 overflow-hidden rounded-xl border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-                  index === selected ? 'border-accent' : 'border-line',
+                  'relative block aspect-[4/5] w-full overflow-hidden rounded-lg border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                  index === selected ? 'border-ink' : 'border-line',
                 )}
               >
                 <ProductImage src={image} name={`${name} thumbnail ${index + 1}`} />
@@ -76,6 +69,14 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
           ))}
         </ul>
       ) : null}
+
+      <div className="relative aspect-[4/5] w-full flex-1 overflow-hidden rounded-2xl border border-line bg-tile">
+        {images.length === 0 ? (
+          <BrandPanel label={`${name} — photos coming soon`} caption="Abstract Lifestyle" />
+        ) : (
+          <ImageZoomDialog src={current} alt={currentAlt} />
+        )}
+      </div>
     </div>
   );
 }
