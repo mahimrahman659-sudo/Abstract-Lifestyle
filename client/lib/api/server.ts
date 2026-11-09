@@ -1,6 +1,14 @@
 import { cacheLife } from 'next/cache';
 import { NEW_BADGE_WINDOW_MS } from '@/lib/catalog/new-badge';
-import type { CategoryTreeItem, ListEnvelope, ProductCard, ProductDetail } from '@/lib/types';
+import type {
+  AdminImageAsset,
+  CategoryTreeItem,
+  ListEnvelope,
+  ProductCard,
+  ProductDetail,
+  SiteImage,
+  SiteImageKey,
+} from '@/lib/types';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
@@ -53,6 +61,31 @@ export const fetchNewArrivals = async (limit = 8): Promise<ListEnvelope<ProductC
     throw new Error(`Failed to load new arrivals (status ${response.status})`);
   }
   return (await response.json()) as ListEnvelope<ProductCard>;
+};
+
+/**
+ * Storefront marketing image slots (hero, promo). Cached in a `'use cache'`
+ * scope so the static home page can read it during prerender and pick up admin
+ * uploads without a redeploy. Never throws — missing slots fall back to the
+ * legacy /public images and then to placeholders.
+ */
+export const fetchSiteImages = async (): Promise<
+  Partial<Record<SiteImageKey, AdminImageAsset | null>>
+> => {
+  'use cache';
+  cacheLife('minutes');
+  try {
+    const response = await fetch(`${API_URL}/api/site-images`);
+    if (!response.ok) {
+      return {};
+    }
+    const data = (await response.json()) as { items: SiteImage[] };
+    return Object.fromEntries(data.items.map((item) => [item.key, item.image])) as Partial<
+      Record<SiteImageKey, AdminImageAsset | null>
+    >;
+  } catch {
+    return {};
+  }
 };
 
 /** Sitemap: category slugs with a safe fallback when the API is unavailable. */

@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: '/admin/orders', label: 'Orders' },
   { href: '/admin/products', label: 'Products' },
   { href: '/admin/categories', label: 'Categories' },
+  { href: '/admin/site-images', label: 'Site Images' },
 ];
 
 function AdminNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {

@@ -4,19 +4,25 @@ import { BrandPanel } from '@/components/ui/BrandPanel';
 import { hasPublicImage } from '@/components/home/local-image';
 import { ArrowRightIcon } from '@/components/ui/icons';
 import { site } from '@/config/site';
+import type { AdminImageAsset } from '@/lib/types';
 
 const focusClass =
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 
+interface PromoImages {
+  wide?: AdminImageAsset | null;
+  portrait?: AdminImageAsset | null;
+}
+
 /**
  * Wide promo card: "JUST ARRIVED" pill, heading, one sentence and a green CTA
- * on the left; two fixed-ratio images (/public/promo-1.jpg wide,
- * /public/promo-2.jpg portrait) on the right. Neutral placeholders when the
- * marketing images are not present. No countdowns, timers or percentages.
+ * on the left; two fixed-ratio images on the right. Image resolution order per
+ * block: admin-managed slot → legacy /public/promo-*.jpg → brand placeholder.
+ * No countdowns, timers or percentages.
  */
-export function PromoBanner() {
-  const hasWide = hasPublicImage('promo-1.jpg');
-  const hasPortrait = hasPublicImage('promo-2.jpg');
+export function PromoBanner({ images }: { images?: PromoImages }) {
+  const wideSrc = images?.wide?.url ?? (hasPublicImage('promo-1.jpg') ? '/promo-1.jpg' : null);
+  const portraitSrc = images?.portrait?.url ?? (hasPublicImage('promo-2.jpg') ? '/promo-2.jpg' : null);
 
   return (
     <section aria-labelledby="promo-heading" className="rounded-[10px] bg-[#efeee6] px-6 py-8 sm:px-10">
@@ -43,9 +49,9 @@ export function PromoBanner() {
 
         <div className="flex items-center gap-3">
           <div className="relative h-28 w-44 shrink-0 overflow-hidden rounded-lg bg-white/50 sm:h-32 sm:w-52 lg:h-36 lg:w-56">
-            {hasWide ? (
+            {wideSrc ? (
               <Image
-                src="/promo-1.jpg"
+                src={wideSrc}
                 alt="A wide look from the latest arrivals"
                 fill
                 sizes="(max-width: 1024px) 208px, 224px"
@@ -56,9 +62,9 @@ export function PromoBanner() {
             )}
           </div>
           <div className="relative h-28 w-24 shrink-0 overflow-hidden rounded-lg bg-white/50 sm:h-32 sm:w-28 lg:h-36 lg:w-32">
-            {hasPortrait ? (
+            {portraitSrc ? (
               <Image
-                src="/promo-2.jpg"
+                src={portraitSrc}
                 alt="A portrait look from the latest arrivals"
                 fill
                 sizes="(max-width: 1024px) 112px, 128px"

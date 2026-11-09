@@ -17,6 +17,8 @@ import { adminIdParamsSchema, adminVariantQuerySchema } from '../schemas/admin.s
 import { createCategorySchema, updateCategorySchema } from '../schemas/category.schema.js';
 import { createProductSchema, updateProductSchema } from '../schemas/product.schema.js';
 import { createVariantSchema, updateVariantSchema } from '../schemas/variant.schema.js';
+import { siteImageKeySchema, updateSiteImageSchema } from '../schemas/site-image.schema.js';
+import { listSiteImages, updateSiteImage } from '../services/site-image.service.js';
 
 export const createCategoryHandler: RequestHandler = async (req, res) => {
   const input = createCategorySchema.parse(req.body);
@@ -142,5 +144,16 @@ export const adminListCustomersHandler: RequestHandler = async (req, res) => {
 export const adminGetCustomerHandler: RequestHandler = async (req, res) => {
   const { id } = adminIdParamsSchema.parse(req.params);
   res.status(200).json(await adminGetCustomer(id));
+};
+
+// Site images (storefront marketing slots)
+export const adminListSiteImagesHandler: RequestHandler = async (_req, res) => {
+  res.status(200).json({ items: await listSiteImages() });
+};
+
+export const adminUpdateSiteImageHandler: RequestHandler = async (req, res) => {
+  const key = siteImageKeySchema.parse(req.params.key);
+  const input = updateSiteImageSchema.parse(req.body);
+  res.status(200).json({ item: await updateSiteImage(key, input.image) });
 };
 

@@ -33,6 +33,7 @@ Codes: `VALIDATION_ERROR` 400 · `UNAUTHORIZED` 401 · `FORBIDDEN` 403 · `NOT_F
 | GET /categories | — | 200 `{ items: [Category + children[]] }` |
 | GET /products | query: `search`, `category` (slug, includes children), `minPrice`, `maxPrice` (poisha), `sizes` (csv), `colors` (csv), `sort` = newest \| price_asc \| price_desc \| relevance, `page`, `limit` | 200 list envelope of ProductCard |
 | GET /products/:slug | — | 200 `{ product, variants: [Variant], sizeGuideKey: 'clothing' \| null }` |
+| GET /site-images | — | 200 `{ items: [{ key, image }] }` — storefront marketing slots (`hero`, `promo-1`, `promo-2`); `image` = `{ url, publicId }` or `null` when empty |
 | GET /health | — | 200 `{ ok: true }` |
 
 ProductCard: `{ id, name, slug, category, image, priceFrom, priceTo, sizes[], colors[], inStock, createdAt }` (`createdAt` = ISO 8601 creation timestamp; the client uses it to show a "New" badge only for products created within the last 14 days)
@@ -77,6 +78,8 @@ Order JSON: `{ id, orderNumber, checkoutId, status, paymentMethod, paymentStatus
 | DELETE /admin/variants/:id | — | 204 (409 if it is the product's last variant) |
 | GET /admin/variants | `?lowStock=true&page&limit` | 200 list envelope (variant + product ref + `inStock`/`lowStock` flags) |
 | POST /admin/uploads | multipart `images[]` (jpeg/png/webp, ≤ 5 MB each, max 10) | 201 `{ assets: [{ url, publicId }] }` — content-verified (magic bytes) then uploaded to Cloudinary (`abstract-lifestyle/products`, cloud-generated public_id); `url` is the secure https URL |
+| GET /admin/site-images | — | 200 `{ items: [{ key, image }] }` — all marketing slots in canonical order |
+| PUT /admin/site-images/:key | `{ image: { url, publicId } \| null }` (`:key` = hero \| promo-1 \| promo-2) | 200 `{ item }` — upserts the slot; `null` clears it (replaces/removes destroy the previous Cloudinary asset, best-effort) |
 | GET /admin/orders | `?status&page&limit` | 200 list envelope (all orders) |
 | GET /admin/orders/:id | — | 200 `{ order, customer: { id, name, email } \| null }` (any user's order) |
 | PATCH /admin/orders/:id/status | `{ status }` | 200 `{ order }` |

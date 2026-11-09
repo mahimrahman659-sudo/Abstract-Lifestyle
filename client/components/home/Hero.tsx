@@ -5,17 +5,18 @@ import { hasPublicImage } from '@/components/home/local-image';
 import { trustIcons } from '@/components/home/trust-icons';
 import { ArrowRightIcon, StarIcon } from '@/components/ui/icons';
 import { site } from '@/config/site';
+import type { AdminImageAsset } from '@/lib/types';
 
 const focusClass =
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 
 /**
- * Home hero: full-bleed cream gradient, copy column (pill, two-line h1,
- * subtitle, CTAs, trust features) and an arch-shaped image panel. Renders a
- * neutral placeholder when /public/hero.jpg is not present.
+ * Home hero: light background, copy column (pill, two-line h1, subtitle, CTAs,
+ * trust features) and a large image panel. Image resolution order: admin-managed
+ * slot → legacy /public/hero.jpg → brand placeholder.
  */
-export function Hero() {
-  const hasHeroImage = hasPublicImage('hero.jpg');
+export function Hero({ heroImage }: { heroImage?: AdminImageAsset | null }) {
+  const heroSrc = heroImage?.url ?? (hasPublicImage('hero.jpg') ? '/hero.jpg' : null);
 
   return (
     <section className="w-full border-b border-line bg-paper">
@@ -69,9 +70,9 @@ export function Hero() {
 
         {/* Image panel */}
         <div className="relative min-h-[320px] w-full overflow-hidden rounded-2xl bg-cream-deep lg:min-h-[480px]">
-          {hasHeroImage ? (
+          {heroSrc ? (
             <Image
-              src="/hero.jpg"
+              src={heroSrc}
               alt="Model wearing pieces from the new Abstract Lifestyle collection"
               fill
               priority

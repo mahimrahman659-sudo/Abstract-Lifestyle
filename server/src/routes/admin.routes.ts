@@ -4,7 +4,9 @@ import {
   adminGetOrderHandler,
   adminListCustomersHandler,
   adminListOrdersHandler,
+  adminListSiteImagesHandler,
   adminUpdateOrderStatusHandler,
+  adminUpdateSiteImageHandler,
   createCategoryHandler,
   createProductHandler,
   createVariantHandler,
@@ -25,6 +27,7 @@ import { uploadImages } from '../middleware/upload.js';
 import { validateBody } from '../middleware/validate.js';
 import { createCategorySchema, updateCategorySchema } from '../schemas/category.schema.js';
 import { createProductSchema, updateProductSchema } from '../schemas/product.schema.js';
+import { updateSiteImageSchema } from '../schemas/site-image.schema.js';
 import { createVariantSchema, updateVariantSchema } from '../schemas/variant.schema.js';
 
 export const adminRouter: Router = Router();
@@ -64,3 +67,7 @@ adminRouter.patch('/orders/:id/status', adminUpdateOrderStatusHandler);
 // Customers
 adminRouter.get('/customers', adminListCustomersHandler);
 adminRouter.get('/customers/:id', adminGetCustomerHandler);
+
+// Site images (storefront marketing slots)
+adminRouter.get('/site-images', adminListSiteImagesHandler);
+adminRouter.put('/site-images/:key', validateBody(updateSiteImageSchema), adminUpdateSiteImageHandler);

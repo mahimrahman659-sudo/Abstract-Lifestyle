@@ -11,6 +11,8 @@ import type {
   OrderDto,
   OrderStatus,
   ProductStatus,
+  SiteImage,
+  SiteImageKey,
   VariantPayload,
 } from '../types';
 import { apiFetch } from './client';
@@ -88,6 +90,14 @@ export const adminApi = {
       body: form,
     });
   },
+
+  // Site images (storefront marketing slots)
+  getSiteImages: () => apiFetch<{ items: SiteImage[] }>('/admin/site-images'),
+  updateSiteImage: (key: SiteImageKey, image: AdminImageAsset | null) =>
+    apiFetch<{ item: SiteImage }>(`/admin/site-images/${key}`, {
+      method: 'PUT',
+      body: { image },
+    }),
 
   // Orders
   listOrders: (query: AdminOrderQuery = {}) =>

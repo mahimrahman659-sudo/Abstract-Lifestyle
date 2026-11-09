@@ -8,6 +8,14 @@ export interface AdminImageAsset {
   publicId: string | null;
 }
 
+/** Storefront marketing image slots managed from the admin. */
+export type SiteImageKey = 'hero' | 'promo-1' | 'promo-2';
+
+export interface SiteImage {
+  key: SiteImageKey;
+  image: AdminImageAsset | null;
+}
+
 export interface AdminCategory {
   id: string;
   name: string;

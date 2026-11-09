@@ -13,6 +13,8 @@ const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGES = 10;
 
+export { ACCEPTED_TYPES, MAX_BYTES };
+
 interface ImageUploaderProps {
   images: AdminImageAsset[];
   onChange: (images: AdminImageAsset[]) => void;

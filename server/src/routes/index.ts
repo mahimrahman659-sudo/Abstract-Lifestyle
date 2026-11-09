@@ -7,6 +7,7 @@ import { categoryRouter } from './category.routes.js';
 import { healthRouter } from './health.routes.js';
 import { orderRouter } from './order.routes.js';
 import { productRouter } from './product.routes.js';
+import { siteImageRouter } from './site-image.routes.js';
 import { userRouter } from './user.routes.js';
 
 export const apiRouter: Router = Router();
@@ -20,6 +21,7 @@ apiRouter.use('/cart', cartRouter);
 apiRouter.use('/categories', categoryRouter);
 apiRouter.use('/orders', orderRouter);
 apiRouter.use('/products', productRouter);
+apiRouter.use('/site-images', siteImageRouter);
 apiRouter.use('/users', userRouter);
 apiRouter.use('/admin', adminRouter);
 
