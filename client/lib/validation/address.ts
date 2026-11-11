@@ -1,4 +1,5 @@
 import type { AddressPayload } from '@/lib/types';
+import { BD_MOBILE_ERROR, normalizeBdMobile } from '@/lib/utils/phone';
 import type { FieldErrors } from './auth';
 
 /**
@@ -18,28 +19,23 @@ export const validateAddress = (values: AddressFormValues): FieldErrors<AddressF
     errors.fullName = 'Full name must be at most 100 characters';
   }
 
-  const phone = text(values.phone);
-  if (phone.length < 6) {
-    errors.phone = 'Phone must be at least 6 characters';
-  } else if (phone.length > 20) {
-    errors.phone = 'Phone must be at most 20 characters';
+  // Bangladeshi mobile only — spaces/dashes and +880/880 are accepted.
+  if (normalizeBdMobile(text(values.phone)) === null) {
+    errors.phone = BD_MOBILE_ERROR;
   }
 
   const line1 = text(values.line1);
   if (line1.length === 0) {
-    errors.line1 = 'Address line 1 is required';
+    errors.line1 = 'Address is required';
   } else if (line1.length > 200) {
-    errors.line1 = 'Address line 1 must be at most 200 characters';
+    errors.line1 = 'Address must be at most 200 characters';
   }
 
   if (text(values.line2).length > 200) {
     errors.line2 = 'Address line 2 must be at most 200 characters';
   }
 
-  const city = text(values.city);
-  if (city.length === 0) {
-    errors.city = 'City is required';
-  } else if (city.length > 100) {
+  if (text(values.city).length > 100) {
     errors.city = 'City must be at most 100 characters';
   }
 
@@ -50,10 +46,7 @@ export const validateAddress = (values: AddressFormValues): FieldErrors<AddressF
     errors.postalCode = 'Postal code must be at most 20 characters';
   }
 
-  const country = text(values.country);
-  if (country.length === 0) {
-    errors.country = 'Country is required';
-  } else if (country.length > 100) {
+  if (text(values.country).length > 100) {
     errors.country = 'Country must be at most 100 characters';
   }
 
@@ -68,13 +61,12 @@ export const validateAddress = (values: AddressFormValues): FieldErrors<AddressF
 export const cleanAddressPayload = (values: AddressFormValues): AddressPayload => {
   const payload: AddressPayload = {
     fullName: values.fullName.trim(),
-    phone: values.phone.trim(),
+    // Send the canonical 01XXXXXXXXX form when the input is valid.
+    phone: normalizeBdMobile(values.phone.trim()) ?? values.phone.trim(),
     line1: values.line1.trim(),
-    city: values.city.trim(),
-    country: values.country.trim(),
   };
   const optional = (
-    key: 'label' | 'line2' | 'state' | 'postalCode',
+    key: 'label' | 'line2' | 'city' | 'state' | 'postalCode' | 'country',
   ): void => {
     const value = values[key]?.trim();
     if (value) {
@@ -83,7 +75,9 @@ export const cleanAddressPayload = (values: AddressFormValues): AddressPayload =
   };
   optional('label');
   optional('line2');
+  optional('city');
   optional('state');
   optional('postalCode');
+  optional('country');
   return payload;
 };

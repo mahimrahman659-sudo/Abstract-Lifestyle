@@ -11,6 +11,7 @@ import { Price } from '@/components/ui/Price';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api/client';
 import { orderApi } from '@/lib/api/order';
+import { site } from '@/config/site';
 import type { OrderDto } from '@/lib/types';
 
 type DetailState =
@@ -145,6 +146,10 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
         {order.paymentStatus})
       </p>
 
+      <p className="text-sm font-medium text-ink">
+        {site.checkout.callConfirmation.replace('{phone}', address.phone)}
+      </p>
+
       {notice ? <Notice tone={notice.tone}>{notice.message}</Notice> : null}
 
       <section
@@ -210,12 +215,19 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
           <br />
           {address.line1}
           {address.line2 ? <>, {address.line2}</> : null}
-          <br />
-          {address.city}
-          {address.state ? `, ${address.state}` : ''}
-          {address.postalCode ? ` ${address.postalCode}` : ''}
-          <br />
-          {address.country}
+          {address.city || address.state || address.postalCode ? (
+            <>
+              <br />
+              {[address.city, address.state].filter(Boolean).join(', ')}
+              {address.postalCode ? ` ${address.postalCode}` : ''}
+            </>
+          ) : null}
+          {address.country ? (
+            <>
+              <br />
+              {address.country}
+            </>
+          ) : null}
           <br />
           {address.phone}
         </address>

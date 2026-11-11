@@ -7,10 +7,10 @@ export interface Address {
   phone: string;
   line1: string;
   line2?: string;
-  city: string;
+  city?: string;
   state?: string;
   postalCode?: string;
-  country: string;
+  country?: string;
   isDefault: boolean;
 }
 
@@ -50,10 +50,10 @@ export interface AddressPayload {
   phone: string;
   line1: string;
   line2?: string;
-  city: string;
+  city?: string;
   state?: string;
   postalCode?: string;
-  country: string;
+  country?: string;
   isDefault?: boolean;
 }
 

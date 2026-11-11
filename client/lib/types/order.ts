@@ -21,10 +21,10 @@ export interface ShippingAddressSnapshot {
   phone: string;
   line1: string;
   line2?: string;
-  city: string;
+  city?: string;
   state?: string;
   postalCode?: string;
-  country: string;
+  country?: string;
 }
 
 export interface OrderStatusEntry {

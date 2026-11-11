@@ -79,6 +79,12 @@ export const site = {
     cta: { label: 'Contact us', href: '/contact' },
   },
 
+  checkout: {
+    // OWNER: confirm — only keep this line if the store really calls every
+    // customer to confirm Cash on Delivery orders.
+    callConfirmation: 'We will call you on {phone} to confirm your order.',
+  },
+
   /** Home section headings and "View all" links. */
   sections: {
     categories: {

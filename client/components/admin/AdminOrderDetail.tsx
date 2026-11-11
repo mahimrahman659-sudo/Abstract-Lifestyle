@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
+import { CopyButton } from '@/components/admin/CopyButton';
 import { ProductImage } from '@/components/catalog/ProductCard';
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
 import { Button } from '@/components/ui/Button';
@@ -128,6 +129,16 @@ export function AdminOrderDetail({ orderId }: { orderId: string }) {
 
   const { order, customer } = state.data;
   const steps = NEXT_STEPS[order.status];
+  const shipping = order.shippingAddress;
+  const addressText = [
+    shipping.line1,
+    shipping.line2,
+    [shipping.city, shipping.state].filter(Boolean).join(', '),
+    shipping.postalCode,
+    shipping.country,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join('\n');
 
   return (
     <div className="space-y-6">
@@ -142,17 +153,43 @@ export function AdminOrderDetail({ orderId }: { orderId: string }) {
       {notice ? <Notice tone={notice.tone}>{notice.message}</Notice> : null}
 
       <section aria-labelledby="customer-heading" className="rounded-2xl border border-line bg-surface p-5">
-        <h2 id="customer-heading" className="text-base font-semibold text-ink">
-          Customer
-        </h2>
-        {customer ? (
-          <p className="mt-2 text-sm text-ink">
-            {customer.name}
-            <span className="ml-2 text-muted">{customer.email}</span>
-          </p>
-        ) : (
-          <p className="mt-2 text-sm text-muted">Customer account no longer exists.</p>
-        )}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="customer-heading" className="text-base font-semibold text-ink">
+            Customer &amp; delivery
+          </h2>
+          <CopyButton value={addressText} />
+        </div>
+        <dl className="mt-3 space-y-2.5 text-sm">
+          <div>
+            <dt className="text-xs text-muted">Name</dt>
+            <dd className="font-medium text-ink">{shipping.fullName}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Phone</dt>
+            <dd>
+              <a
+                href={`tel:${shipping.phone}`}
+                className="font-medium text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                {shipping.phone}
+              </a>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Address</dt>
+            <dd className="whitespace-pre-line text-ink">{addressText}</dd>
+          </div>
+          {customer ? (
+            <div>
+              <dt className="text-xs text-muted">Account</dt>
+              <dd className="text-muted">
+                {customer.name} · {customer.email}
+              </dd>
+            </div>
+          ) : (
+            <p className="text-xs text-muted">Customer account no longer exists.</p>
+          )}
+        </dl>
       </section>
 
       <section aria-labelledby="admin-items-heading" className="rounded-2xl border border-line bg-surface p-5">
@@ -201,24 +238,6 @@ export function AdminOrderDetail({ orderId }: { orderId: string }) {
             </dd>
           </div>
         </dl>
-      </section>
-
-      <section aria-labelledby="admin-address-heading" className="rounded-2xl border border-line bg-surface p-5">
-        <h2 id="admin-address-heading" className="text-base font-semibold text-ink">
-          Shipping address
-        </h2>
-        <address className="mt-2 text-sm not-italic text-muted">
-          <span className="font-medium text-ink">{order.shippingAddress.fullName}</span>
-          <br />
-          {order.shippingAddress.line1}
-          {order.shippingAddress.line2 ? <>, {order.shippingAddress.line2}</> : null}
-          <br />
-          {order.shippingAddress.city}
-          {order.shippingAddress.state ? `, ${order.shippingAddress.state}` : ''}{' '}
-          {order.shippingAddress.postalCode ?? ''}
-          <br />
-          {order.shippingAddress.country} · {order.shippingAddress.phone}
-        </address>
       </section>
 
       <section aria-labelledby="admin-status-heading" className="rounded-2xl border border-line bg-surface p-5">

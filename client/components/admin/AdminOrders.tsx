@@ -126,6 +126,7 @@ export function AdminOrders() {
                       {formatDate(order.createdAt)} · {order.items.length} line
                       {order.items.length === 1 ? '' : 's'}
                     </p>
+                    <p className="text-xs font-medium text-ink">{order.shippingAddress.phone}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <OrderStatusBadge status={order.status} />

@@ -9,10 +9,11 @@ export interface Address {
   phone: string;
   line1: string;
   line2?: string;
-  city: string;
+  /** Optional: checkout only collects name, phone and address. */
+  city?: string;
   state?: string;
   postalCode?: string;
-  country: string;
+  country?: string;
   isDefault: boolean;
 }
 
@@ -38,10 +39,10 @@ const addressSchema = new Schema<Address>(
     phone: { type: String, required: true, trim: true },
     line1: { type: String, required: true, trim: true },
     line2: { type: String, trim: true },
-    city: { type: String, required: true, trim: true },
+    city: { type: String, trim: true },
     state: { type: String, trim: true },
     postalCode: { type: String, trim: true },
-    country: { type: String, required: true, trim: true },
+    country: { type: String, trim: true },
     isDefault: { type: Boolean, default: false },
   },
   { _id: true },

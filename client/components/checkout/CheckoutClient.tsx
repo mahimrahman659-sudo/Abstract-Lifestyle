@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AddressForm, type AddressFormErrors } from '@/components/checkout/AddressForm';
+import { useAuth } from '@/components/auth/AuthProvider';
 import { useCart } from '@/components/cart/CartProvider';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -31,15 +32,12 @@ const emptyAddress: AddressFormValues = {
   fullName: '',
   phone: '',
   line1: '',
-  line2: '',
-  city: '',
-  state: '',
-  postalCode: '',
   country: 'Bangladesh',
 };
 
 export function CheckoutClient() {
   const router = useRouter();
+  const { user } = useAuth();
   const { serverCart, refresh } = useCart();
 
   // One idempotency key per checkout attempt: retries of this same form submit
@@ -67,9 +65,18 @@ export function CheckoutClient() {
         const { items } = await userApi.getAddresses();
         if (!cancelled) {
           setAddresses({ status: 'success', items });
-          if (items.length > 0 && selection === 'new') {
-            const preferred = items.find((item) => item.isDefault) ?? items[0];
+          const preferred = items.find((item) => item.isDefault) ?? items[0];
+          if (preferred && selection === 'new') {
             setSelection(preferred._id);
+          }
+          // Pre-fill the new-address form from the default saved address.
+          if (preferred) {
+            setAddressValues((previous) => ({
+              ...previous,
+              fullName: previous.fullName || preferred.fullName,
+              phone: previous.phone || preferred.phone,
+              line1: previous.line1 || preferred.line1,
+            }));
           }
         }
       } catch (error) {
@@ -92,6 +99,20 @@ export function CheckoutClient() {
     setAddressValues((previous) => ({ ...previous, [field]: value }));
     setAddressErrors((previous) => ({ ...previous, [field]: undefined }));
   };
+
+  // Pre-fill the name from the account, so checkout only needs phone + address.
+  useEffect(() => {
+    const accountName = user?.name;
+    if (!accountName) {
+      return;
+    }
+    void (async () => {
+      await Promise.resolve();
+      setAddressValues((previous) =>
+        previous.fullName ? previous : { ...previous, fullName: accountName },
+      );
+    })();
+  }, [user?.name]);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -129,7 +150,8 @@ export function CheckoutClient() {
         try {
           await userApi.createAddress({
             ...cleanAddressPayload(addressValues),
-            isDefault: false,
+            // The first saved address becomes the default for next time.
+            isDefault: addresses.status === 'success' && addresses.items.length === 0,
           });
         } catch {
           // Ignore — the address can be saved again from the account flow.
@@ -237,8 +259,10 @@ export function CheckoutClient() {
                           </span>
                           <span className="mt-0.5 block text-muted">
                             {address.line1}
-                            {address.line2 ? `, ${address.line2}` : ''}, {address.city}
-                            {address.postalCode ? ` ${address.postalCode}` : ''}, {address.country}
+                            {address.line2 ? `, ${address.line2}` : ''}
+                            {address.city ? `, ${address.city}` : ''}
+                            {address.postalCode ? ` ${address.postalCode}` : ''}
+                            {address.country ? `, ${address.country}` : ''}
                             <br />
                             {address.phone}
                           </span>
@@ -278,7 +302,7 @@ export function CheckoutClient() {
                       onChange={(event) => setSaveAddress(event.target.checked)}
                       className="size-4 accent-accent"
                     />
-                    Save this address to my account
+                    Save this address for next time
                   </label>
                 </div>
               ) : null}

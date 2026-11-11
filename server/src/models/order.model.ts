@@ -22,10 +22,11 @@ export interface ShippingAddressSnapshot {
   phone: string;
   line1: string;
   line2?: string;
-  city: string;
+  /** Optional: checkout only collects name, phone and address. */
+  city?: string;
   state?: string;
   postalCode?: string;
-  country: string;
+  country?: string;
 }
 
 export interface OrderStatusEntry {
@@ -77,10 +78,10 @@ const shippingAddressSchema = new Schema<ShippingAddressSnapshot>(
     phone: { type: String, required: true },
     line1: { type: String, required: true },
     line2: { type: String },
-    city: { type: String, required: true },
+    city: { type: String },
     state: { type: String },
     postalCode: { type: String },
-    country: { type: String, required: true },
+    country: { type: String },
   },
   { _id: false },
 );
