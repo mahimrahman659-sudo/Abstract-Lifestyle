@@ -1,13 +1,24 @@
 import { CURRENCY } from '../../config/currency';
 
-const formatter = new Intl.NumberFormat(CURRENCY.locale, {
+const wholeTakaFormatter = new Intl.NumberFormat(CURRENCY.locale, {
+  maximumFractionDigits: 0,
+});
+
+const fractionFormatter = new Intl.NumberFormat(CURRENCY.locale, {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
 
-/** Converts integer poisha to a BDT display string, e.g. 123456 → ৳1,234.56 */
-export const formatPoisha = (poisha: number): string =>
-  `${CURRENCY.symbol}${formatter.format(poisha / CURRENCY.subunitPerUnit)}`;
+/**
+ * Converts integer poisha to a BDT display string. Whole-taka amounts drop the
+ * decimals (110000 → ৳1,100); amounts with a fractional part keep two
+ * (8999 → ৳89.99). Poisha values stay integers internally.
+ */
+export const formatPoisha = (poisha: number): string => {
+  const hasFraction = poisha % CURRENCY.subunitPerUnit !== 0;
+  const formatter = hasFraction ? fractionFormatter : wholeTakaFormatter;
+  return `${CURRENCY.symbol}${formatter.format(poisha / CURRENCY.subunitPerUnit)}`;
+};
 
 /**
  * Exact decimal-string → integer poisha conversion (never goes through float).

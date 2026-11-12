@@ -78,7 +78,9 @@ export function Footer() {
 
       <div className="border-t border-line">
         <div className="mx-auto flex max-w-[1280px] items-center px-4 py-5 text-xs text-muted sm:px-10">
-          © <CopyrightYear /> {site.name}. All rights reserved.
+          <p>
+            © <CopyrightYear /> {site.name}. All rights reserved.
+          </p>
         </div>
       </div>
     </footer>

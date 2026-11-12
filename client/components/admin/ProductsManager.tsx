@@ -163,7 +163,10 @@ export function ProductsManager() {
         />
       ) : (
         <>
-          <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
+          {/* `relative` keeps absolutely-positioned screen-reader (sr-only) cell text
+              inside this scroll container; otherwise it resolves against the initial
+              containing block and extends the document width. */}
+          <div className="relative overflow-x-auto rounded-2xl border border-line bg-surface">
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead>
                 <tr className="border-b border-line text-xs uppercase tracking-wide text-muted">

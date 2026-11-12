@@ -1,53 +1,16 @@
-import Image from 'next/image';
 import Link from 'next/link';
+import { ProductImage } from '@/components/catalog/ProductImage';
 import { CartIcon } from '@/components/ui/icons';
 import { Price } from '@/components/ui/Price';
 import type { ProductCard as ProductCardData } from '@/lib/types';
 
+// Kept re-exported so every existing `import { ProductImage } from ProductCard`
+// keeps working after the fallback logic moved into its own client module.
+export { ProductImage } from '@/components/catalog/ProductImage';
+export type { ProductImageProps } from '@/components/catalog/ProductImage';
+
 const focusClass =
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
-
-export interface ProductImageProps {
-  src: string | null;
-  name: string;
-  /** Extra classes for the img (e.g. object-contain padding). */
-  className?: string;
-  sizes?: string;
-}
-
-/** Neutral placeholder shown when a product has no image. */
-export function ProductImage({ src, name, className = '', sizes }: ProductImageProps) {
-  if (!src) {
-    return (
-      <div
-        className={`flex h-full w-full items-center justify-center bg-gradient-to-br from-tile to-cream/60 text-muted ${className}`}
-        role="img"
-        aria-label={`No image available for ${name}`}
-      >
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 24 24"
-          className="size-10 fill-none stroke-current opacity-50"
-          strokeWidth="1.1"
-        >
-          <rect x="3" y="5" width="18" height="14" rx="2" />
-          <circle cx="9" cy="10" r="1.5" />
-          <path d="m5 17 4-4 3 3 3-3 4 4" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </div>
-    );
-  }
-
-  return (
-    <Image
-      src={src}
-      alt={name}
-      fill
-      sizes={sizes ?? '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw'}
-      className={`object-cover ${className}`}
-    />
-  );
-}
 
 export interface ProductCardProps {
   product: ProductCardData;

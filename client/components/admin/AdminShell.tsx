@@ -76,7 +76,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             </div>
           </aside>
 
-          <section aria-label="Admin content">{children}</section>
+          <section aria-label="Admin content" className="min-w-0">{children}</section>
         </div>
       </div>
     </RequireAdmin>
