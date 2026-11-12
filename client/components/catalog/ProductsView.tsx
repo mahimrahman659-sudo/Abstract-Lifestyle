@@ -12,6 +12,8 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { catalogApi } from '@/lib/api/catalog';
 import { ApiError } from '@/lib/api/client';
 import { isCreatedAfter, NEW_BADGE_WINDOW_MS } from '@/lib/catalog/new-badge';
+import { PRODUCT_GRID_CLASS, PRODUCT_GRID_ITEM_CLASS } from '@/lib/catalog/grid';
+import { cn } from '@/lib/utils/cn';
 import {
   buildCatalogQueryString,
   hasActiveCatalogFilters,
@@ -176,9 +178,9 @@ export function ProductsView() {
 
         <section aria-label="Products" aria-busy={list.status === 'loading'}>
           {list.status === 'loading' ? (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+            <div className={PRODUCT_GRID_CLASS}>
               {Array.from({ length: 8 }).map((_, index) => (
-                <div key={index} className="overflow-hidden rounded-2xl border border-line bg-surface">
+                <div key={index} className={cn(PRODUCT_GRID_ITEM_CLASS, 'overflow-hidden rounded-2xl border border-line bg-surface')}>
                   <Skeleton className="aspect-[4/5] w-full rounded-none" />
                   <div className="space-y-2 p-4">
                     <Skeleton className="h-3 w-16" />
@@ -208,9 +210,9 @@ export function ProductsView() {
             />
           ) : (
             <>
-              <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+              <ul className={PRODUCT_GRID_CLASS}>
                 {list.data.items.map((product) => (
-                  <li key={product.id}>
+                  <li key={product.id} className={PRODUCT_GRID_ITEM_CLASS}>
                     <ProductCard product={product} isNew={isCreatedAfter(product.createdAt, list.newCutoff)} />
                   </li>
                 ))}

@@ -19,6 +19,8 @@ import { cn } from '@/lib/utils/cn';
 const rowClass = 'mx-auto flex h-[72px] max-w-[1280px] items-center gap-3 px-4 sm:px-10';
 const focusClass =
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
+/** 44×44px minimum touch target for the header icon buttons. */
+const iconButtonClass = 'flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-tile';
 
 export function Header() {
   const { user, loading, logout } = useAuth();
@@ -92,7 +94,7 @@ export function Header() {
         {/* Mobile: hamburger (menu below). */}
         <button
           type="button"
-          className={cn('rounded-full p-2 hover:bg-tile md:hidden', focusClass)}
+          className={cn(iconButtonClass, focusClass, 'md:hidden')}
           aria-expanded={mobileOpen}
           aria-controls="mobile-nav"
           aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
@@ -101,14 +103,20 @@ export function Header() {
           <MenuIcon className="size-5 text-ink" />
         </button>
 
-        {/* Left: logo mark + wordmark + tagline. */}
-        <Link href="/" className={cn('flex items-center gap-2.5', focusClass)}>
-          <span className="flex size-7 items-center justify-center rounded-lg bg-brand text-white">
+        {/* Left: logo mark + wordmark + tagline. The wordmark never wraps; the
+            tagline is hidden on very narrow screens so nothing overflows at 320px. */}
+        <Link
+          href="/"
+          className={cn('flex min-w-0 flex-1 items-center gap-2.5 md:flex-none', focusClass)}
+        >
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand text-white">
             <BagIcon className="size-4" />
           </span>
-          <span className="flex flex-col leading-none">
-            <span className="text-xl font-bold tracking-tight text-ink">{site.name}</span>
-            <span className="mt-1 text-[10px] font-medium text-muted">{site.tagline}</span>
+          <span className="flex min-w-0 flex-col leading-none">
+            <span className="truncate text-xl font-bold tracking-tight text-ink">{site.name}</span>
+            <span className="mt-1 hidden text-[10px] font-medium text-muted min-[400px]:block">
+              {site.tagline}
+            </span>
           </span>
         </Link>
         {/* Center (desktop): main navigation. */}
@@ -139,7 +147,7 @@ export function Header() {
         <div className="ml-auto flex items-center gap-1">
           <button
             type="button"
-            className={cn('rounded-full p-2 hover:bg-tile', focusClass)}
+            className={cn(iconButtonClass, focusClass)}
             aria-expanded={searchOpen}
             aria-controls="header-search-panel"
             aria-label={searchOpen ? 'Close search' : 'Search products'}
@@ -149,14 +157,14 @@ export function Header() {
           </button>
 
           {loading ? (
-            <span className="flex size-9 items-center justify-center">
+            <span className="flex size-11 items-center justify-center">
               <Spinner className="size-5" label="Loading account" />
             </span>
           ) : user ? (
             <div ref={accountRef} className="relative">
               <button
                 type="button"
-                className={cn('rounded-full p-2 hover:bg-tile', focusClass)}
+                className={cn(iconButtonClass, focusClass)}
                 aria-haspopup="menu"
                 aria-expanded={accountOpen}
                 aria-label="Account menu"
@@ -211,7 +219,7 @@ export function Header() {
             <Link
               href="/login"
               aria-label="Sign in"
-              className={cn('rounded-full p-2 hover:bg-tile', focusClass)}
+              className={cn(iconButtonClass, focusClass)}
             >
               <UserIcon className="size-5 text-ink" />
             </Link>
@@ -220,7 +228,7 @@ export function Header() {
           <Link
             href="/cart"
             aria-label={itemCount > 0 ? `Cart, ${itemCount} items` : 'Cart'}
-            className={cn('relative rounded-full p-2 hover:bg-tile', focusClass)}
+            className={cn(iconButtonClass, 'relative', focusClass)}
           >
             <CartIcon className="size-5 text-ink" />
             {itemCount > 0 ? (

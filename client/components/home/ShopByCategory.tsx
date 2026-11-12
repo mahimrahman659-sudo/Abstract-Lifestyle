@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { fetchCategoryTree } from '@/lib/api/server';
+import { CATEGORY_GRID_CLASS, CATEGORY_GRID_ITEM_CLASS } from '@/lib/catalog/grid';
 import type { CategoryTreeItem } from '@/lib/types';
 import { site } from '@/config/site';
 
@@ -53,11 +54,11 @@ export async function ShopByCategory() {
           description="Collections will appear here once the catalog is set up."
         />
       ) : (
-        <ul className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">
+        <ul className={CATEGORY_GRID_CLASS}>
           {categories.map((category, index) => {
             const Icon = categoryIcon(category);
             return (
-              <li key={category.id}>
+              <li key={category.id} className={CATEGORY_GRID_ITEM_CLASS}>
                 <Link
                   href={`/products?category=${category.slug}`}
                   className={`group flex flex-col ${focusClass}`}
@@ -116,9 +117,9 @@ export function ShopByCategorySkeleton() {
         <Skeleton className="h-7 w-48" />
         <Skeleton className="h-4 w-28" />
       </div>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">
+      <div className={CATEGORY_GRID_CLASS}>
         {Array.from({ length: 8 }).map((_, index) => (
-          <div key={index} className="flex flex-col items-center">
+          <div key={index} className={`${CATEGORY_GRID_ITEM_CLASS} flex flex-col items-center`}>
             <Skeleton className="aspect-[5/6] w-full rounded-lg" />
             <Skeleton className="mt-2 h-3 w-16" />
           </div>

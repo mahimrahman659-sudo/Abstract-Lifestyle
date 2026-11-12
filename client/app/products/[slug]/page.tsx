@@ -12,6 +12,7 @@ import { ArrowRightIcon, BanknoteIcon, ExchangeIcon, ShieldIcon } from "@/compon
 import { site } from "@/config/site";
 import { fetchCategoryTree, fetchProductDetail, getNewBadgeCutoff, getRelatedProducts } from "@/lib/api/server";
 import { isCreatedAfter } from "@/lib/catalog/new-badge";
+import { PRODUCT_GRID_CLASS, PRODUCT_GRID_ITEM_CLASS } from "@/lib/catalog/grid";
 import { absoluteUrl, SITE_NAME } from "@/lib/seo";
 import type { CategoryTreeItem } from "@/lib/types";
 
@@ -242,9 +243,9 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
               <ArrowRightIcon className="size-4" />
             </Link>
           </div>
-          <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
+          <ul className={`mt-6 ${PRODUCT_GRID_CLASS}`}>
             {related.map((item) => (
-              <li key={item.id}>
+              <li key={item.id} className={PRODUCT_GRID_ITEM_CLASS}>
                 <ProductCard product={item} isNew={isCreatedAfter(item.createdAt, newCutoff)} />
               </li>
             ))}

@@ -37,3 +37,21 @@ export const getSwatchColor = (name: string): string | null => {
   const key = name.trim().toLowerCase();
   return key.length > 0 ? (COLOR_HEX[key] ?? null) : null;
 };
+
+/**
+ * True for pale swatches (white, cream, ivory, light gray, beige…) that would
+ * disappear against a light surface without a visible border. Uses a simple
+ * perceptual luminance so new light colors are covered without extra entries.
+ */
+export const isLightSwatch = (hex: string): boolean => {
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!match) {
+    return false;
+  }
+  const value = Number.parseInt(match[1], 16);
+  const r = (value >> 16) & 0xff;
+  const g = (value >> 8) & 0xff;
+  const b = value & 0xff;
+  // Rec. 601 luma, 0–255; anything brighter than ~200 reads as "light".
+  return 0.299 * r + 0.587 * g + 0.114 * b > 200;
+};

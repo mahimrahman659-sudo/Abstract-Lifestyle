@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { Notice, type NoticeTone } from '@/components/ui/Notice';
 import { Price } from '@/components/ui/Price';
 import { ApiError } from '@/lib/api/client';
-import { getSwatchColor } from '@/lib/catalog/color-map';
+import { getSwatchColor, isLightSwatch } from '@/lib/catalog/color-map';
 import type { PublicVariant } from '@/lib/types';
 import { cn } from '@/lib/utils/cn';
 
@@ -185,7 +185,7 @@ export function PurchasePanel({
         {colors.length > 0 ? (
           <fieldset>
             <legend className="mb-3 text-sm text-ink">
-              Color: <span className="font-semibold">{selection.color ?? '—'}</span>
+              Color: <span className="font-semibold">{selection.color ?? 'One color'}</span>
             </legend>
             <div className="flex flex-wrap gap-3">
               {colors.map((color) => {
@@ -204,7 +204,12 @@ export function PurchasePanel({
                     className={cn(
                       'size-10 rounded-full border transition',
                       'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-                      active ? 'border-ink ring-2 ring-ink ring-offset-2' : 'border-line',
+                      active
+                        ? 'border-ink ring-2 ring-ink ring-offset-2'
+                        : swatch && isLightSwatch(swatch)
+                          ? // White/cream/ivory/light-gray/beige need a visible edge on light surfaces.
+                            'border-ink/30'
+                          : 'border-line',
                       !swatch && 'bg-tile',
                       !available && 'cursor-not-allowed opacity-40',
                     )}
@@ -219,13 +224,17 @@ export function PurchasePanel({
               })}
             </div>
           </fieldset>
-        ) : null}
+        ) : (
+          <p className="text-sm text-ink">
+            Color: <span className="font-semibold">One color</span>
+          </p>
+        )}
 
         {sizes.length > 0 ? (
           <div className="mt-5">
             <div className="mb-3 flex items-center justify-between gap-3">
               <p className="text-sm text-ink">
-                Size: <span className="font-semibold">{selection.size ?? '—'}</span>
+                Size: <span className="font-semibold">{selection.size ?? 'One size'}</span>
               </p>
               {sizeGuideKey === 'clothing' ? <SizeGuideDialog /> : null}
             </div>
@@ -258,7 +267,15 @@ export function PurchasePanel({
               </div>
             </fieldset>
           </div>
-        ) : null}
+        ) : (
+          <div className="mt-5 flex items-center justify-between gap-3">
+            {/* Products sold in one size still say so — never "Size: —". */}
+            <p className="text-sm text-ink">
+              Size: <span className="font-semibold">One size</span>
+            </p>
+            {sizeGuideKey === 'clothing' ? <SizeGuideDialog /> : null}
+          </div>
+        )}
 
         <div className="mt-5 flex items-end gap-3">
           <div className="w-28">
@@ -271,11 +288,10 @@ export function PurchasePanel({
               onChange={(event) => setQuantity(Number(event.target.value))}
             />
           </div>
-          {sizes.length === 0 && sizeGuideKey === 'clothing' ? <SizeGuideDialog /> : null}
         </div>
 
         <Button
-          variant="dark"
+          variant="primary"
           size="lg"
           radius="md"
           className="mt-5 w-full"

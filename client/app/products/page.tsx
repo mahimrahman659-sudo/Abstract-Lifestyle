@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ProductsView } from "@/components/catalog/ProductsView";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { PRODUCT_GRID_CLASS, PRODUCT_GRID_ITEM_CLASS } from "@/lib/catalog/grid";
 
 export const metadata: Metadata = {
   title: "Shop all products",
@@ -21,9 +22,9 @@ export default function ProductsPage() {
       fallback={
         <div className="mx-auto max-w-6xl px-4 py-10">
           <Skeleton className="mb-6 h-8 w-48" />
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+          <div className={PRODUCT_GRID_CLASS}>
             {Array.from({ length: 8 }).map((_, index) => (
-              <Skeleton key={index} className="aspect-[4/5] w-full rounded-2xl" />
+              <Skeleton key={index} className={`${PRODUCT_GRID_ITEM_CLASS} aspect-[4/5] rounded-2xl`} />
             ))}
           </div>
         </div>

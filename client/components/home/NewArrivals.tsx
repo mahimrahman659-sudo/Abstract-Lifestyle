@@ -5,6 +5,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { fetchNewArrivals, getNewBadgeCutoff } from '@/lib/api/server';
 import { isCreatedAfter } from '@/lib/catalog/new-badge';
+import { PRODUCT_GRID_CLASS, PRODUCT_GRID_ITEM_CLASS } from '@/lib/catalog/grid';
 import { site } from '@/config/site';
 import type { ListEnvelope, ProductCard as ProductCardData } from '@/lib/types';
 
@@ -44,9 +45,9 @@ export async function NewArrivals() {
           description="New products will appear here as soon as the catalog is stocked."
         />
       ) : (
-        <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <ul className={PRODUCT_GRID_CLASS}>
           {data.items.map((product) => (
-            <li key={product.id}>
+            <li key={product.id} className={PRODUCT_GRID_ITEM_CLASS}>
               <ProductCard product={product} isNew={isCreatedAfter(product.createdAt, newCutoff)} />
             </li>
           ))}
@@ -63,9 +64,9 @@ export function NewArrivalsSkeleton() {
         <Skeleton className="h-7 w-40" />
         <Skeleton className="h-4 w-28" />
       </div>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      <div className={PRODUCT_GRID_CLASS}>
         {Array.from({ length: LIMIT }).map((_, index) => (
-          <div key={index} className="flex flex-col">
+          <div key={index} className={`${PRODUCT_GRID_ITEM_CLASS} flex flex-col`}>
             <Skeleton className="aspect-square w-full rounded-lg" />
             <Skeleton className="mt-2 h-3 w-3/4" />
             <Skeleton className="mt-1.5 h-4 w-16" />
