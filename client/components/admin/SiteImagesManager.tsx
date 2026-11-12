@@ -1,8 +1,8 @@
 'use client';
 
-import Image from 'next/image';
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { ACCEPTED_TYPES, MAX_BYTES } from '@/components/admin/ImageUploader';
+import { ProductImage } from '@/components/catalog/ProductCard';
 import { Button } from '@/components/ui/Button';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Notice, type NoticeTone } from '@/components/ui/Notice';
@@ -200,12 +200,12 @@ export function SiteImagesManager() {
                   className={`relative mt-3 w-full overflow-hidden rounded-lg bg-tile ${meta.aspectClass}`}
                 >
                   {slot?.image ? (
-                    <Image
+                    <ProductImage
                       src={slot.image.url}
-                      alt={meta.label}
-                      fill
+                      name={meta.label}
                       sizes="(max-width: 768px) 100vw, 33vw"
                       className="object-cover"
+                      placeholderText="Image missing — remove or re-upload"
                     />
                   ) : (
                     <p
