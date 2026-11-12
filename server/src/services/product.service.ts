@@ -5,6 +5,7 @@ import { ProductModel } from '../models/product.model.js';
 import { VariantModel } from '../models/variant.model.js';
 import type { ProductListQuery } from '../schemas/product.schema.js';
 import { firstImageUrl, imageUrls } from '../utils/images.js';
+import { discountPercent, resolveCompareAtPrice } from '../utils/pricing.js';
 import { isInStock, isLowStock } from '../utils/stock.js';
 
 export interface ProductCardCategory {
@@ -24,6 +25,10 @@ export interface ProductCard {
   sizes: string[];
   colors: string[];
   inStock: boolean;
+  /** Compare-at price that applies to `priceFrom` (null = no sale). */
+  compareAtPrice: number | null;
+  /** Server-computed, floor; always 0 when the compare-at is not greater. */
+  discountPercent: number;
   /** Creation timestamp (ISO 8601) — public; used for the "New" badge. */
   createdAt: string;
 }
@@ -42,6 +47,9 @@ export interface PublicVariant {
   size: string | null;
   color: string | null;
   price: number;
+  /** Own compare-at (variant has a price) or the product compare-at (no own price). */
+  compareAtPrice: number | null;
+  discountPercent: number;
   stock: number;
   inStock: boolean;
   lowStock: boolean;
@@ -56,6 +64,8 @@ export interface ProductDetail {
     description: string;
     category: ProductCardCategory | null;
     basePrice: number;
+    compareAtPrice: number | null;
+    discountPercent: number;
     images: string[];
     /** Creation timestamp (ISO 8601) — public; used for the "New Arrival" flag. */
     createdAt: string;
@@ -77,6 +87,7 @@ interface ProductAggregateRow {
   colors: string[];
   totalStock: number;
   createdAt: Date;
+  compareAtFrom: number | null;
 }
 
 const resolveCategoryIds = async (slug: string): Promise<Types.ObjectId[] | null> => {
@@ -179,6 +190,22 @@ export const listProducts = async (query: ProductListQuery): Promise<ProductList
             in: { $ifNull: ['$$variant.price', '$basePrice'] },
           },
         },
+        // Compare-at that applies to each variant: a variant with its own price
+        // uses ONLY its own compare-at (null = no sale); a variant without its
+        // own price uses the product compare-at (client decision).
+        applicableCompareAts: {
+          $map: {
+            input: '$variantDocs',
+            as: 'variant',
+            in: {
+              $cond: [
+                { $ne: [{ $ifNull: ['$$variant.price', null] }, null] },
+                { $ifNull: ['$$variant.compareAtPrice', null] },
+                '$compareAtPrice',
+              ],
+            },
+          },
+        },
         sizes: { $setDifference: [{ $setUnion: ['$variantDocs.size', []] }, [null]] },
         colors: { $setDifference: [{ $setUnion: ['$variantDocs.color', []] }, [null]] },
         totalStock: { $sum: '$variantDocs.stock' },
@@ -188,6 +215,33 @@ export const listProducts = async (query: ProductListQuery): Promise<ProductList
       $addFields: {
         priceFrom: { $ifNull: [{ $min: '$effectivePrices' }, '$basePrice'] },
         priceTo: { $ifNull: [{ $max: '$effectivePrices' }, '$basePrice'] },
+      },
+    },
+    {
+      $addFields: {
+        // Compare-at belonging to the cheapest (displayed) variant; the product
+        // value is used only when the product has no variants at all.
+        compareAtFrom: {
+          $cond: [
+            { $gt: [{ $size: { $ifNull: ['$variantDocs', []] } }, 0] },
+            {
+              $max: {
+                $map: {
+                  input: {
+                    $filter: {
+                      input: { $zip: { inputs: ['$effectivePrices', '$applicableCompareAts'] } },
+                      as: 'pair',
+                      cond: { $eq: [{ $arrayElemAt: ['$$pair', 0] }, '$priceFrom'] },
+                    },
+                  },
+                  as: 'pair',
+                  in: { $ifNull: [{ $arrayElemAt: ['$$pair', 1] }, null] },
+                },
+              },
+            },
+            '$compareAtPrice',
+          ],
+        },
       },
     },
     ...priceMatch,
@@ -220,6 +274,7 @@ export const listProducts = async (query: ProductListQuery): Promise<ProductList
               colors: 1,
               totalStock: 1,
               createdAt: 1,
+              compareAtFrom: 1,
               categoryDoc: { $arrayElemAt: ['$categoryDocs', 0] },
             },
           },
@@ -239,19 +294,25 @@ export const listProducts = async (query: ProductListQuery): Promise<ProductList
   const total = facet?.total[0]?.count ?? 0;
 
   return {
-    items: rows.map((row) => ({
-      id: row._id.toString(),
-      name: row.name,
-      slug: row.slug,
-      category: toCategoryCard(row.categoryDoc),
-      image: firstImageUrl(row.images),
-      priceFrom: row.priceFrom ?? row.basePrice,
-      priceTo: row.priceTo ?? row.basePrice,
-      sizes: row.sizes,
-      colors: row.colors,
-      inStock: isInStock(row.totalStock),
-      createdAt: row.createdAt.toISOString(),
-    })),
+    items: rows.map((row) => {
+      const priceFrom = row.priceFrom ?? row.basePrice;
+      const compareAtPrice = row.compareAtFrom ?? null;
+      return {
+        id: row._id.toString(),
+        name: row.name,
+        slug: row.slug,
+        category: toCategoryCard(row.categoryDoc),
+        image: firstImageUrl(row.images),
+        priceFrom,
+        priceTo: row.priceTo ?? row.basePrice,
+        sizes: row.sizes,
+        colors: row.colors,
+        inStock: isInStock(row.totalStock),
+        compareAtPrice,
+        discountPercent: discountPercent(priceFrom, compareAtPrice),
+        createdAt: row.createdAt.toISOString(),
+      };
+    }),
     page: query.page,
     limit: query.limit,
     total,
@@ -302,20 +363,32 @@ export const getProductBySlug = async (slug: string): Promise<ProductDetail> => 
         ? { id: category._id.toString(), name: category.name, slug: category.slug }
         : null,
       basePrice: product.basePrice,
+      compareAtPrice: product.compareAtPrice ?? null,
+      discountPercent: discountPercent(product.basePrice, product.compareAtPrice),
       images: imageUrls(product.images),
       createdAt: product.createdAt.toISOString(),
     },
-    variants: variants.map((variant) => ({
-      id: variant._id.toString(),
-      sku: variant.sku,
-      size: variant.size,
-      color: variant.color,
-      price: variant.price ?? product.basePrice,
-      stock: variant.stock,
-      inStock: isInStock(variant.stock),
-      lowStock: isLowStock(variant.stock, variant.lowStockThreshold),
-      images: variant.images,
-    })),
+    variants: variants.map((variant) => {
+      const price = variant.price ?? product.basePrice;
+      const compareAtPrice = resolveCompareAtPrice(
+        variant.price,
+        variant.compareAtPrice,
+        product.compareAtPrice,
+      );
+      return {
+        id: variant._id.toString(),
+        sku: variant.sku,
+        size: variant.size,
+        color: variant.color,
+        price,
+        compareAtPrice,
+        discountPercent: discountPercent(price, compareAtPrice),
+        stock: variant.stock,
+        inStock: isInStock(variant.stock),
+        lowStock: isLowStock(variant.stock, variant.lowStockThreshold),
+        images: variant.images,
+      };
+    }),
     sizeGuideKey,
   };
 };

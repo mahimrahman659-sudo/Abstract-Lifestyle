@@ -184,6 +184,8 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
           <PurchasePanel
             productName={product.name}
             basePrice={product.basePrice}
+            compareAtPrice={product.compareAtPrice}
+            discountPercent={product.discountPercent}
             variants={variants}
             sizeGuideKey={sizeGuideKey}
             description={product.description}

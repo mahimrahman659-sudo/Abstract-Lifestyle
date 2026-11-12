@@ -16,6 +16,9 @@ import { cn } from '@/lib/utils/cn';
 interface PurchasePanelProps {
   productName: string;
   basePrice: number;
+  /** Product-level compare-at (used when the selected variant has no own sale). */
+  compareAtPrice: number | null;
+  discountPercent: number;
   variants: PublicVariant[];
   sizeGuideKey: 'clothing' | null;
   /** Short description shown under the price (full text lives in the tabs). */
@@ -43,6 +46,8 @@ const pickInitialVariant = (variants: PublicVariant[]): PublicVariant | null =>
 export function PurchasePanel({
   productName,
   basePrice,
+  compareAtPrice,
+  discountPercent,
   variants,
   sizeGuideKey,
   description,
@@ -134,11 +139,28 @@ export function PurchasePanel({
 
   const outOfStock = !selectedVariant || selectedVariant.stock === 0;
 
+  // Server-computed sale values for the current selection — never calculated here.
+  const displayPrice = selectedVariant ? selectedVariant.price : basePrice;
+  const displayCompareAt = selectedVariant ? selectedVariant.compareAtPrice : compareAtPrice;
+  const displayDiscount = selectedVariant ? selectedVariant.discountPercent : discountPercent;
+
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <p className="text-2xl font-bold tracking-tight text-ink">
-          <Price poisha={selectedVariant ? selectedVariant.price : basePrice} />
+        <p className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+          <span className="text-2xl font-bold tracking-tight text-ink">
+            <Price poisha={displayPrice} />
+          </span>
+          {displayDiscount > 0 && displayCompareAt !== null ? (
+            <>
+              <s aria-label="Original price" className="text-sm text-muted line-through">
+                <Price poisha={displayCompareAt} />
+              </s>
+              <span className="rounded-[4px] bg-brand px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white">
+                −{displayDiscount}%
+              </span>
+            </>
+          ) : null}
         </p>
         {selectedVariant ? (
           <p

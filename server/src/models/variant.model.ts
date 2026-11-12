@@ -7,6 +7,11 @@ export interface Variant {
   size: string | null;
   color: string | null;
   price: number | null;
+  /**
+   * Optional original price in poisha. Only meaningful when the variant has
+   * its own `price`; a variant without its own price uses the product's value.
+   */
+  compareAtPrice?: number | null;
   stock: number;
   lowStockThreshold: number;
   images: string[];
@@ -21,6 +26,7 @@ const variantSchema = new Schema<Variant>(
     size: { type: String, default: null, trim: true },
     color: { type: String, default: null, trim: true },
     price: { type: Number, default: null, min: 0 },
+    compareAtPrice: { type: Number, default: null, min: 0 },
     stock: { type: Number, required: true, min: 0, default: 0 },
     lowStockThreshold: { type: Number, default: LOW_STOCK_THRESHOLD_DEFAULT, min: 0 },
     images: { type: [String], default: [] },

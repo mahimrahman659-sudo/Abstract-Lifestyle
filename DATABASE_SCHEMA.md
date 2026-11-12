@@ -47,6 +47,7 @@ Products attach to a subcategory (or a root category when it has no children).
 | description | string | required |
 | category | ObjectId → categories | required |
 | basePrice | integer | poisha (1/100 BDT); required |
+| compareAtPrice | integer \| null | optional original price in poisha; must be greater than `basePrice` when set (`null` = no sale). Variant overrides product |
 | images | image asset[] | `{ url, publicId }` objects (Cloudinary); legacy plain strings (`/uploads/...`) are normalized on read |
 | status | 'draft' \| 'active' \| 'archived' | default 'draft' |
 
@@ -62,6 +63,7 @@ Effective variant price = `variant.price ?? product.basePrice` (computed at serv
 | size | string \| null | e.g. "M"; null for lifestyle default |
 | color | string \| null | e.g. "Black" |
 | price | integer \| null | optional override (poisha) |
+| compareAtPrice | integer \| null | optional original price in poisha; only used when the variant has its own `price`, must be greater than it. A variant without its own price inherits the product `compareAtPrice` |
 | stock | integer | required, ≥ 0 |
 | lowStockThreshold | integer | default 5 |
 | images | string[] | optional; falls back to product images |

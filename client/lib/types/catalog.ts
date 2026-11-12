@@ -29,6 +29,10 @@ export interface ProductCard {
   sizes: string[];
   colors: string[];
   inStock: boolean;
+  /** Compare-at price applying to `priceFrom` (null = no sale). */
+  compareAtPrice: number | null;
+  /** Server-computed, floor; 0 when there is no active sale. */
+  discountPercent: number;
   /** ISO 8601 creation timestamp — gates the "New" badge (last 14 days). */
   createdAt: string;
 }
@@ -39,6 +43,9 @@ export interface PublicVariant {
   size: string | null;
   color: string | null;
   price: number;
+  /** Own compare-at (variant has a price) or the product compare-at. */
+  compareAtPrice: number | null;
+  discountPercent: number;
   stock: number;
   inStock: boolean;
   lowStock: boolean;
@@ -52,6 +59,8 @@ export interface ProductDetailProduct {
   description: string;
   category: ProductCardCategory | null;
   basePrice: number;
+  compareAtPrice: number | null;
+  discountPercent: number;
   images: string[];
   /** ISO 8601 creation timestamp — gates the "New Arrival" flag (last 14 days). */
   createdAt: string;

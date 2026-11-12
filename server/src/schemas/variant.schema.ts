@@ -6,6 +6,8 @@ export const createVariantSchema = z.object({
   size: z.string().trim().max(20).nullable().optional(),
   color: z.string().trim().max(40).nullable().optional(),
   price: z.number().int().min(0).nullable().optional(),
+  /** Only used when the variant has its own price; must exceed that price. */
+  compareAtPrice: z.number().int().min(0).nullable().optional(),
   stock: z.number().int().min(0),
   lowStockThreshold: z.number().int().min(0).default(LOW_STOCK_THRESHOLD_DEFAULT),
   images: z.array(z.string().trim().max(300)).default([]),

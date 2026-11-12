@@ -14,6 +14,8 @@ export interface ProductFormValues {
   description: string;
   categoryId: string;
   takaPrice: string;
+  /** Optional original price in taka ("" = no sale). */
+  compareAtTaka: string;
   status: ProductStatus;
   images: AdminImageAsset[];
 }
@@ -33,7 +35,9 @@ interface ProductFormProps {
   extraActions?: ReactNode;
 }
 
-type FieldErrors = Partial<Record<'name' | 'description' | 'categoryId' | 'takaPrice', string>>;
+type FieldErrors = Partial<
+  Record<'name' | 'description' | 'categoryId' | 'takaPrice' | 'compareAtTaka', string>
+>;
 
 const STATUS_OPTIONS: Array<{ value: ProductStatus; label: string }> = [
   { value: 'draft', label: 'Draft' },
@@ -59,6 +63,7 @@ export function ProductForm({
   };
 
   const price = parseTakaToPoisha(values.takaPrice);
+  const compareAt = values.compareAtTaka.trim() === '' ? null : parseTakaToPoisha(values.compareAtTaka);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -86,6 +91,13 @@ export function ProductForm({
       nextErrors.takaPrice = 'Enter a valid price in taka, e.g. 89.99';
     }
 
+    // Compare-at is optional, but when set it must be higher than the price.
+    if (values.compareAtTaka.trim() !== '' && compareAt === null) {
+      nextErrors.compareAtTaka = 'Enter a valid price in taka, e.g. 89.99';
+    } else if (compareAt !== null && price !== null && compareAt <= price) {
+      nextErrors.compareAtTaka = 'Compare-at price must be greater than the price.';
+    }
+
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0 || price === null) {
       return;
@@ -96,6 +108,7 @@ export function ProductForm({
       description,
       category: values.categoryId,
       basePrice: price,
+      compareAtPrice: compareAt,
       images: values.images,
       status: values.status,
     });
@@ -181,6 +194,20 @@ export function ProductForm({
           error={errors.takaPrice}
           hint={price !== null ? `Stored as ${price} poisha (${formatPoisha(price)})` : 'Enter taka, e.g. 89.99'}
           onChange={(event) => setField('takaPrice', event.target.value)}
+        />
+
+        <Input
+          label="Compare-at price (৳) (optional)"
+          inputMode="decimal"
+          disabled={submitting}
+          value={values.compareAtTaka}
+          error={errors.compareAtTaka}
+          hint={
+            compareAt !== null
+              ? `Shows as the struck-through original (${formatPoisha(compareAt)}). Leave empty for no sale.`
+              : 'Original price before a sale. Leave empty for no sale.'
+          }
+          onChange={(event) => setField('compareAtTaka', event.target.value)}
         />
       </div>
 

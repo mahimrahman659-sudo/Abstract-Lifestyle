@@ -23,6 +23,8 @@ interface VariantFormValues {
   size: string;
   color: string;
   priceTaka: string;
+  /** Optional original price in taka; only used when the variant has a price. */
+  compareAtTaka: string;
   stock: string;
   lowStockThreshold: string;
 }
@@ -35,6 +37,7 @@ const emptyVariant: VariantFormValues = {
   size: '',
   color: '',
   priceTaka: '',
+  compareAtTaka: '',
   stock: '0',
   lowStockThreshold: '5',
 };
@@ -44,6 +47,8 @@ const toFormValues = (variant: AdminVariant): VariantFormValues => ({
   size: variant.size ?? '',
   color: variant.color ?? '',
   priceTaka: variant.price === null ? '' : poishaToTakaInput(variant.price),
+  compareAtTaka:
+    variant.compareAtPrice === null ? '' : poishaToTakaInput(variant.compareAtPrice),
   stock: String(variant.stock),
   lowStockThreshold: String(variant.lowStockThreshold),
 });
@@ -53,11 +58,18 @@ const buildPayload = (values: VariantFormValues): VariantPayload | null => {
   if (values.priceTaka.trim() !== '' && price === null) {
     return null;
   }
+  const compareAt =
+    values.compareAtTaka.trim() === '' ? null : parseTakaToPoisha(values.compareAtTaka);
+  if (values.compareAtTaka.trim() !== '' && compareAt === null) {
+    return null;
+  }
   return {
     sku: values.sku.trim().toUpperCase(),
     size: values.size.trim() === '' ? null : values.size.trim(),
     color: values.color.trim() === '' ? null : values.color.trim(),
     price,
+    // The variant's own compare-at only applies with its own price.
+    compareAtPrice: price === null ? null : compareAt,
     stock: Number(values.stock),
     lowStockThreshold: Number(values.lowStockThreshold),
   };
@@ -80,6 +92,18 @@ const validate = (values: VariantFormValues): VariantErrors => {
   if (values.priceTaka.trim() !== '' && parseTakaToPoisha(values.priceTaka) === null) {
     errors.priceTaka = 'Enter a valid price, e.g. 89.99';
   }
+
+  // Compare-at only makes sense with the variant's own price override.
+  const price = values.priceTaka.trim() === '' ? null : parseTakaToPoisha(values.priceTaka);
+  const compareAt =
+    values.compareAtTaka.trim() === '' ? null : parseTakaToPoisha(values.compareAtTaka);
+  if (values.compareAtTaka.trim() !== '' && compareAt === null) {
+    errors.compareAtTaka = 'Enter a valid price, e.g. 89.99';
+  } else if (compareAt !== null && price === null) {
+    errors.compareAtTaka = 'Add a price override first, or clear the compare-at price.';
+  } else if (compareAt !== null && price !== null && compareAt <= price) {
+    errors.compareAtTaka = 'Compare-at price must be greater than the price.';
+  }
   const stock = Number(values.stock);
   if (!Number.isInteger(stock) || stock < 0) {
     errors.stock = 'Stock must be a whole number, 0 or more';
@@ -97,6 +121,12 @@ const mapVariantError = (error: unknown): VariantErrors => {
   }
   if (error.message === 'SKU already exists' || error.message.includes('SKU or size/color')) {
     return { sku: error.message };
+  }
+  if (
+    error.message.includes('Compare-at price') ||
+    error.message.includes('Price must be lower than the compare-at')
+  ) {
+    return { compareAtTaka: error.message };
   }
   if (error.message.includes('size and color already exists')) {
     return { size: error.message, color: error.message };
@@ -257,6 +287,15 @@ export function VariantManager({ productId, variants, reload }: VariantManagerPr
         error={errors.priceTaka}
         hint="Empty = use the product base price"
         onChange={(event) => setField('priceTaka', event.target.value)}
+      />
+      <Input
+        label="Compare-at price ৳ (optional)"
+        inputMode="decimal"
+        disabled={busy}
+        value={values.compareAtTaka}
+        error={errors.compareAtTaka}
+        hint="Only used with a price override; must be higher than that price"
+        onChange={(event) => setField('compareAtTaka', event.target.value)}
       />
       <Input
         label="Stock"

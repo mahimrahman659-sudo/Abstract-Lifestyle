@@ -8,6 +8,8 @@ export interface Product {
   description: string;
   category: Types.ObjectId;
   basePrice: number;
+  /** Optional original (pre-sale) price in poisha; variant overrides product. */
+  compareAtPrice?: number | null;
   /**
    * Images are stored as `{ url, publicId }` objects for Cloudinary assets.
    * Legacy documents hold plain strings (`/uploads/...`); always read through
@@ -26,6 +28,9 @@ const productSchema = new Schema<Product>(
     description: { type: String, required: true, trim: true },
     category: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
     basePrice: { type: Number, required: true, min: 0 },
+    // Null = no sale. Must be greater than the effective price (validated in
+    // the admin service, including against later price changes).
+    compareAtPrice: { type: Number, default: null, min: 0 },
     // Mixed so legacy string URLs and new { url, publicId } assets both load.
     images: { type: [Schema.Types.Mixed], default: [] },
     status: { type: String, enum: ['draft', 'active', 'archived'], default: 'draft' },

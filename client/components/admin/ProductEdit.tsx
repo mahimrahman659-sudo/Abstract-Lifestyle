@@ -210,6 +210,8 @@ export function ProductEdit({ productId }: { productId: string }) {
             description: product.description,
             categoryId: product.category,
             takaPrice: poishaToTakaInput(product.basePrice),
+            compareAtTaka:
+              product.compareAtPrice === null ? '' : poishaToTakaInput(product.compareAtPrice),
             status: product.status,
             images: product.images,
           }}

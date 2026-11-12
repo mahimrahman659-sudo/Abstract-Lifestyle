@@ -96,6 +96,7 @@ export function ProductCreate() {
             description: '',
             categoryId: '',
             takaPrice: '',
+            compareAtTaka: '',
             status: 'draft',
             images: [],
           }}

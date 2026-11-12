@@ -36,9 +36,9 @@ Codes: `VALIDATION_ERROR` 400 · `UNAUTHORIZED` 401 · `FORBIDDEN` 403 · `NOT_F
 | GET /site-images | — | 200 `{ items: [{ key, image }] }` — storefront marketing slots (`hero`, `promo-1`, `promo-2`); `image` = `{ url, publicId }` or `null` when empty |
 | GET /health | — | 200 `{ ok: true }` |
 
-ProductCard: `{ id, name, slug, category, image, priceFrom, priceTo, sizes[], colors[], inStock, createdAt }` (`createdAt` = ISO 8601 creation timestamp; the client uses it to show a "New" badge only for products created within the last 14 days)
-Variant: `{ id, sku, size, color, price (effective), stock, inStock, lowStock, images[] }` (`lowStock` = stock ≤ lowStockThreshold and > 0).
-Product (detail): `{ id, name, slug, description, category, basePrice, images[], createdAt }` (`createdAt` = ISO 8601 creation timestamp; the client uses it to show a "New Arrival" flag only for products created within the last 14 days).
+ProductCard: `{ id, name, slug, category, image, priceFrom, priceTo, sizes[], colors[], inStock, compareAtPrice, discountPercent, createdAt }` (`compareAtPrice` = original price applying to `priceFrom`, `null` = no sale; `discountPercent` = server-computed floor %, always `0` unless the compare-at is strictly greater than the price; `createdAt` = ISO 8601 creation timestamp used for the "New" badge)
+Variant: `{ id, sku, size, color, price (effective), compareAtPrice, discountPercent, stock, inStock, lowStock, images[] }` (`lowStock` = stock ≤ lowStockThreshold and > 0). Compare-at rule: a variant **with its own price** uses only its own `compareAtPrice` (none = no sale); a variant **without its own price** uses the product `compareAtPrice`.
+Product (detail): `{ id, name, slug, description, category, basePrice, compareAtPrice, discountPercent, images[], createdAt }` (`createdAt` = ISO 8601 creation timestamp; the client uses it to show a "New Arrival" flag only for products created within the last 14 days; `discountPercent` comes from the product-level compare-at and is 0 when it is not greater than `basePrice`).
 
 ## Cart (customer — server-side cart)
 | Endpoint | Request | Response |
@@ -75,6 +75,8 @@ Order JSON: `{ id, orderNumber, checkoutId, status, paymentMethod, paymentStatus
 | DELETE /admin/products/:id | — | 204 hard delete; **200 `{ product, archived: true }` when referenced by orders** (archived, not deleted) |
 | POST /admin/products/:id/variants | `{ sku, size?, color?, price?, stock, lowStockThreshold? }` | 201 `{ variant }` (409 on duplicate SKU or duplicate size/color) |
 | PATCH /admin/variants/:id | partial | 200 `{ variant }` — stock set with `$set`, non-negative integers only |
+
+Sale pricing (admin): `POST/PATCH /admin/products` accept `compareAtPrice` (integer poisha; `null` clears it) and `variants` endpoints accept `compareAtPrice` (only used when the variant has its own `price`). A variant WITH its own price uses only its own compare-at (none = no sale); a variant WITHOUT its own price uses the product compare-at. Setting a compare-at that is not greater than the price returns 400 - Compare-at price must be greater than the price. Raising a price to or above the stored compare-at returns 400 - Price must be lower than the compare-at price. Clear or raise the compare-at price first. Public DTOs always return `discountPercent: 0` when the compare-at is not strictly greater than the price, so stale values never render a discount.
 | DELETE /admin/variants/:id | — | 204 (409 if it is the product's last variant) |
 | GET /admin/variants | `?lowStock=true&page&limit` | 200 list envelope (variant + product ref + `inStock`/`lowStock` flags) |
 | POST /admin/uploads | multipart `images[]` (jpeg/png/webp/heic/avif/bmp/tiff by content, ≤ 5 MB each, max 10) | 201 `{ assets: [{ url, publicId }] }` — content-verified (magic bytes) then uploaded to Cloudinary (`abstract-lifestyle/products`, cloud-generated public_id); HEIC/AVIF/BMP/TIFF are converted to JPEG on upload; `url` is the secure https URL |

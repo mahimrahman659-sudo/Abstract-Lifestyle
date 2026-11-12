@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
 import { AppError } from '../middleware/error-handler.js';
+import { COMPARE_AT_RULE_MESSAGE, PRICE_RULE_MESSAGE } from '../utils/pricing.js';
 import { CategoryModel } from '../models/category.model.js';
 import { ProductModel, type ProductStatus } from '../models/product.model.js';
 import { VariantModel } from '../models/variant.model.js';
@@ -33,6 +34,7 @@ export interface ProductAdminDto {
   description: string;
   category: string;
   basePrice: number;
+  compareAtPrice: number | null;
   images: ImageAsset[];
   status: ProductStatus;
 }
@@ -44,6 +46,7 @@ export interface VariantAdminDto {
   size: string | null;
   color: string | null;
   price: number | null;
+  compareAtPrice: number | null;
   stock: number;
   lowStockThreshold: number;
   images: string[];
@@ -186,6 +189,7 @@ const toProductDto = (product: {
   description: string;
   category: Types.ObjectId;
   basePrice: number;
+  compareAtPrice?: number | null;
   images: unknown[];
   status: ProductStatus;
 }): ProductAdminDto => ({
@@ -195,6 +199,7 @@ const toProductDto = (product: {
   description: product.description,
   category: product.category.toString(),
   basePrice: product.basePrice,
+  compareAtPrice: product.compareAtPrice ?? null,
   images: normalizeImages(product.images),
   status: product.status,
 });
@@ -214,6 +219,7 @@ export const createProduct = async (input: CreateProductInput): Promise<ProductA
     description: input.description,
     category: category._id,
     basePrice: input.basePrice,
+    compareAtPrice: input.compareAtPrice ?? null,
     images: normalizeImages(input.images),
     status: input.status,
   });
@@ -243,7 +249,22 @@ export const updateProduct = async (
     product.category = category._id;
   }
   if (input.description !== undefined) product.description = input.description;
+
+  // Sale-price guard: the merged pair must stay valid, so raising a price above
+  // a stored compare-at price is rejected instead of silently creating a fake
+  // discount. Variants without their own price inherit the product compare-at.
+  const nextBasePrice = input.basePrice ?? product.basePrice;
+  const nextCompareAtPrice =
+    input.compareAtPrice !== undefined ? input.compareAtPrice : (product.compareAtPrice ?? null);
+  if (nextCompareAtPrice !== null && nextCompareAtPrice <= nextBasePrice) {
+    throw new AppError(
+      400,
+      'VALIDATION_ERROR',
+      input.compareAtPrice !== undefined ? COMPARE_AT_RULE_MESSAGE : PRICE_RULE_MESSAGE,
+    );
+  }
   if (input.basePrice !== undefined) product.basePrice = input.basePrice;
+  if (input.compareAtPrice !== undefined) product.compareAtPrice = input.compareAtPrice;
 
   // Track image removals so their Cloudinary assets can be deleted after saving.
   const removedAssets: ImageAsset[] = [];
@@ -303,6 +324,7 @@ const toVariantDto = (
     size: string | null;
     color: string | null;
     price: number | null;
+    compareAtPrice?: number | null;
     stock: number;
     lowStockThreshold: number;
     images: string[];
@@ -315,6 +337,7 @@ const toVariantDto = (
   size: variant.size,
   color: variant.color,
   price: variant.price,
+  compareAtPrice: variant.compareAtPrice ?? null,
   stock: variant.stock,
   lowStockThreshold: variant.lowStockThreshold,
   images: variant.images,
@@ -365,13 +388,22 @@ export const createVariant = async (
   const product = await loadProductOrThrow(productId);
   await ensureUniqueVariant(input, product._id);
 
+  // A variant's own compare-at only applies when it also has its own price;
+  // variants without a price inherit the product compare-at price.
+  const price = input.price ?? null;
+  const compareAtPrice = price === null ? null : (input.compareAtPrice ?? null);
+  if (price !== null && compareAtPrice !== null && compareAtPrice <= price) {
+    throw new AppError(400, 'VALIDATION_ERROR', COMPARE_AT_RULE_MESSAGE);
+  }
+
   try {
     const variant = await VariantModel.create({
       product: product._id,
       sku: input.sku,
       size: input.size ?? null,
       color: input.color ?? null,
-      price: input.price ?? null,
+      price,
+      compareAtPrice,
       stock: input.stock,
       lowStockThreshold: input.lowStockThreshold,
       images: input.images,
@@ -407,10 +439,32 @@ export const updateVariant = async (
   if (input.sku !== undefined) setFields.sku = input.sku;
   if (input.size !== undefined) setFields.size = input.size;
   if (input.color !== undefined) setFields.color = input.color;
-  if (input.price !== undefined) setFields.price = input.price;
   if (input.stock !== undefined) setFields.stock = input.stock;
   if (input.lowStockThreshold !== undefined) setFields.lowStockThreshold = input.lowStockThreshold;
   if (input.images !== undefined) setFields.images = input.images;
+
+  const nextPrice = input.price !== undefined ? input.price : variant.price;
+  let nextCompareAtPrice =
+    input.compareAtPrice !== undefined
+      ? input.compareAtPrice
+      : (variant.compareAtPrice ?? null);
+
+  if (nextPrice === null) {
+    // No own price → the product compare-at applies; the variant's own value
+    // is unused, so it is cleared rather than left as hidden stale data.
+    nextCompareAtPrice = null;
+  } else if (nextCompareAtPrice !== null && nextCompareAtPrice <= nextPrice) {
+    // Raising the price above the stored compare-at is rejected (stale-value guard).
+    throw new AppError(
+      400,
+      'VALIDATION_ERROR',
+      input.compareAtPrice !== undefined ? COMPARE_AT_RULE_MESSAGE : PRICE_RULE_MESSAGE,
+    );
+  }
+  if (input.price !== undefined) setFields.price = input.price;
+  if (input.compareAtPrice !== undefined || input.price !== undefined) {
+    setFields.compareAtPrice = nextCompareAtPrice;
+  }
 
   const updated = await VariantModel.findOneAndUpdate(
     { _id: variant._id },

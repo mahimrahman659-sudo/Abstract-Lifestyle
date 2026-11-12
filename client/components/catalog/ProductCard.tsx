@@ -93,15 +93,27 @@ export function ProductCard({ product, isNew }: ProductCardProps) {
               {product.name}
             </Link>
           </h3>
-          <p className="mt-1.5 text-[14px] font-bold text-ink">
-            {product.priceFrom === product.priceTo ? (
-              <Price poisha={product.priceFrom} />
-            ) : (
+          <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <p className="text-[14px] font-bold text-ink">
+              {product.priceFrom === product.priceTo ? (
+                <Price poisha={product.priceFrom} />
+              ) : (
+                <>
+                  From <Price poisha={product.priceFrom} />
+                </>
+              )}
+            </p>
+            {product.discountPercent > 0 && product.compareAtPrice !== null ? (
               <>
-                From <Price poisha={product.priceFrom} />
+                <s aria-label="Original price" className="text-[12px] text-muted line-through">
+                  <Price poisha={product.compareAtPrice} />
+                </s>
+                <span className="rounded-[4px] bg-brand px-1 py-0.5 text-[10px] font-semibold leading-none text-white">
+                  −{product.discountPercent}%
+                </span>
               </>
-            )}
-          </p>
+            ) : null}
+          </div>
         </div>
         <Link
           href={href}

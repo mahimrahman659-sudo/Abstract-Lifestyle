@@ -33,6 +33,7 @@ export interface AdminProduct {
   description: string;
   category: string;
   basePrice: number;
+  compareAtPrice: number | null;
   images: AdminImageAsset[];
   status: ProductStatus;
 }
@@ -44,6 +45,7 @@ export interface AdminVariant {
   size: string | null;
   color: string | null;
   price: number | null;
+  compareAtPrice: number | null;
   stock: number;
   lowStockThreshold: number;
   images: string[];
@@ -79,6 +81,7 @@ export interface CreateProductPayload {
   description: string;
   category: string;
   basePrice: number;
+  compareAtPrice?: number | null;
   images: AdminImageAsset[];
   status: ProductStatus;
 }
@@ -88,6 +91,7 @@ export interface VariantPayload {
   size?: string | null;
   color?: string | null;
   price?: number | null;
+  compareAtPrice?: number | null;
   stock: number;
   lowStockThreshold?: number;
   images?: string[];

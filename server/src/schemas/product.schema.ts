@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { COMPARE_AT_RULE_MESSAGE } from '../utils/pricing.js';
 import { objectIdSchema } from './common.schema.js';
 
 const productImageSchema = z.union([
@@ -9,22 +10,46 @@ const productImageSchema = z.union([
   }),
 ]);
 
-export const createProductSchema = z.object({
+const productShape = z.object({
   name: z.string().trim().min(1).max(120),
   description: z.string().trim().min(1).max(2000),
   category: objectIdSchema,
   basePrice: z.number().int().min(0),
+  /** Original price in poisha (null = no sale); must exceed the selling price. */
+  compareAtPrice: z.number().int().min(0).nullable().optional(),
   images: z.array(productImageSchema).max(10).default([]),
   status: z.enum(['draft', 'active', 'archived']).default('draft'),
 });
 
+export const createProductSchema = productShape.superRefine((value, ctx) => {
+  if (
+    value.compareAtPrice !== null &&
+    value.compareAtPrice !== undefined &&
+    value.compareAtPrice <= value.basePrice
+  ) {
+    ctx.addIssue({ code: 'custom', path: ['compareAtPrice'], message: COMPARE_AT_RULE_MESSAGE });
+  }
+});
+
 // Defaults are stripped before .partial() so PATCHes never re-inject them.
-export const updateProductSchema = createProductSchema
+export const updateProductSchema = productShape
   .extend({
     images: z.array(productImageSchema).max(10).optional(),
     status: z.enum(['draft', 'active', 'archived']).optional(),
   })
-  .partial();
+  .partial()
+  .superRefine((value, ctx) => {
+    // Only the pair inside this payload can be checked here; the merged-value
+    // check (and stale values from later price changes) lives in the service.
+    if (
+      value.basePrice !== undefined &&
+      value.compareAtPrice !== null &&
+      value.compareAtPrice !== undefined &&
+      value.compareAtPrice <= value.basePrice
+    ) {
+      ctx.addIssue({ code: 'custom', path: ['compareAtPrice'], message: COMPARE_AT_RULE_MESSAGE });
+    }
+  });
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
