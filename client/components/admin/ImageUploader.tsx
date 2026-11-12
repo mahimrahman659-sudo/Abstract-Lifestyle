@@ -1,7 +1,7 @@
 'use client';
 
-import Image from 'next/image';
 import { useRef, useState, type ChangeEvent } from 'react';
+import { ProductImage } from '@/components/catalog/ProductCard';
 import { Button } from '@/components/ui/Button';
 import { Notice, type NoticeTone } from '@/components/ui/Notice';
 import { Spinner } from '@/components/ui/Spinner';
@@ -145,12 +145,12 @@ export function ImageUploader({ images, onChange, disabled = false }: ImageUploa
           {images.map((image, index) => (
             <li key={`${image.publicId ?? image.url}-${index}`} className="w-32 rounded-xl border border-line bg-surface p-2">
               <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-tile">
-                <Image
+                <ProductImage
                   src={image.url}
-                  alt={`Product image ${index + 1}`}
-                  fill
+                  name={`Product image ${index + 1}`}
                   sizes="128px"
                   className="object-cover"
+                  placeholderText="Image missing — remove or re-upload"
                 />
               </div>
               <p className="mt-1 text-center text-[11px] font-medium text-muted">
