@@ -78,6 +78,8 @@ export interface CartContextValue {
   updateItem: (variantId: string, quantity: number) => Promise<CartView | null>;
   removeItem: (variantId: string) => Promise<void>;
   clearCart: () => Promise<void>;
+  /** Drops the local cart state immediately (no API call) — used after a placed order. */
+  resetCart: () => void;
   refresh: () => Promise<void>;
 }
 
@@ -204,13 +206,36 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setServerCart(await cartApi.clear());
   }, [user]);
 
+  // The order just emptied the cart server-side: clear the local view at once so
+  // the header badge shows 0 without waiting for a round-trip.
+  const resetCart = useCallback(() => {
+    if (!user) {
+      writeGuestCart([]);
+      setGuestItems([]);
+      return;
+    }
+    setServerCart((previous) =>
+      previous ? { ...previous, items: [], subtotal: 0, total: previous.shippingFee } : previous,
+    );
+  }, [user]);
+
   const itemCount = user
     ? (serverCart?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0)
     : guestItems.reduce((sum, item) => sum + item.quantity, 0);
 
   const value = useMemo<CartContextValue>(
-    () => ({ serverCart, guestItems, itemCount, addItem, updateItem, removeItem, clearCart, refresh }),
-    [serverCart, guestItems, itemCount, addItem, updateItem, removeItem, clearCart, refresh],
+    () => ({
+      serverCart,
+      guestItems,
+      itemCount,
+      addItem,
+      updateItem,
+      removeItem,
+      clearCart,
+      resetCart,
+      refresh,
+    }),
+    [serverCart, guestItems, itemCount, addItem, updateItem, removeItem, clearCart, resetCart, refresh],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

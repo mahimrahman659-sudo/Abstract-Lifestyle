@@ -12,6 +12,8 @@ interface AddressFormProps {
   errors: AddressFormErrors;
   disabled?: boolean;
   onChange: (field: keyof AddressFormValues, value: string) => void;
+  /** Validate the touched field (inline feedback on blur). */
+  onBlurField?: (field: keyof AddressFormValues) => void;
 }
 
 /**
@@ -19,10 +21,11 @@ interface AddressFormProps {
  * confirm the order by phone: full name, Bangladeshi mobile number and the
  * address itself.
  */
-export function AddressForm({ values, errors, disabled, onChange }: AddressFormProps) {
+export function AddressForm({ idPrefix, values, errors, disabled, onChange, onBlurField }: AddressFormProps) {
   return (
     <div className="grid gap-4">
       <Input
+        id={`${idPrefix}-fullName`}
         label="Full name"
         autoComplete="name"
         required
@@ -30,8 +33,10 @@ export function AddressForm({ values, errors, disabled, onChange }: AddressFormP
         value={values.fullName}
         error={errors.fullName}
         onChange={(event) => onChange('fullName', event.target.value)}
+        onBlur={() => onBlurField?.('fullName')}
       />
       <Input
+        id={`${idPrefix}-phone`}
         label="Phone number"
         type="tel"
         inputMode="tel"
@@ -43,8 +48,10 @@ export function AddressForm({ values, errors, disabled, onChange }: AddressFormP
         value={values.phone}
         error={errors.phone}
         onChange={(event) => onChange('phone', event.target.value)}
+        onBlur={() => onBlurField?.('phone')}
       />
       <Textarea
+        id={`${idPrefix}-line1`}
         label="Address"
         autoComplete="street-address"
         placeholder="House, road, area, city"
@@ -54,6 +61,7 @@ export function AddressForm({ values, errors, disabled, onChange }: AddressFormP
         value={values.line1}
         error={errors.line1}
         onChange={(event) => onChange('line1', event.target.value)}
+        onBlur={() => onBlurField?.('line1')}
       />
     </div>
   );

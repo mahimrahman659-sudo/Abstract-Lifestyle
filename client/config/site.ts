@@ -83,6 +83,14 @@ export const site = {
     // OWNER: confirm — only keep this line if the store really calls every
     // customer to confirm Cash on Delivery orders.
     callConfirmation: 'We will call you on {phone} to confirm your order.',
+    // OWNER: confirm — these are statements of fact about the store's process,
+    // not marketing claims. Adjust or remove any that do not match reality.
+    confirmationTitle: 'Thank you — your order is placed.',
+    whatHappensNext: [
+      'We call you on the phone number you gave us to confirm the order before dispatch.',
+      'You pay cash to the delivery person when the order arrives.',
+      'You can cancel this order from this page while it is still pending.',
+    ],
   },
 
   /** Home section headings and "View all" links. */

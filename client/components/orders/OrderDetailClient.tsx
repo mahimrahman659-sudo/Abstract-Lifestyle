@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ProductImage } from '@/components/catalog/ProductCard';
+import { CheckoutSteps } from '@/components/checkout/CheckoutSteps';
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
 import { Button } from '@/components/ui/Button';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -34,6 +36,10 @@ const formatDate = (iso: string): string =>
   });
 
 export function OrderDetailClient({ orderId }: { orderId: string }) {
+  const searchParams = useSearchParams();
+  // Checkout sends the shopper here with ?placed=1 — only then is this the
+  // "order placed" confirmation rather than a historical order view.
+  const justPlaced = searchParams.get('placed') === '1';
   const [state, setState] = useState<DetailState>({ status: 'loading' });
   const [notice, setNotice] = useState<DetailNotice | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -135,6 +141,57 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
 
   return (
     <div className="space-y-6">
+      {justPlaced ? (
+        <>
+          <CheckoutSteps current="Done" />
+
+          <section
+            role="status"
+            className="rounded-2xl border border-success/40 bg-success/10 p-5"
+          >
+            <p className="flex items-center gap-2 text-base font-semibold text-success">
+              <span aria-hidden="true">✓</span>
+              {site.checkout.confirmationTitle}
+            </p>
+            <p className="mt-1 text-sm text-ink">
+              Your order number is <span className="font-semibold">{order.orderNumber}</span>.
+            </p>
+            <p className="mt-2 text-sm text-ink">
+              {site.checkout.callConfirmation.replace('{phone}', address.phone)}
+            </p>
+          </section>
+
+          <section
+            aria-labelledby="what-next-heading"
+            className="rounded-2xl border border-line bg-surface p-5"
+          >
+            <h2 id="what-next-heading" className="text-base font-semibold text-ink">
+              What happens next
+            </h2>
+            <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-muted">
+              {site.checkout.whatHappensNext.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ol>
+          </section>
+
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/products"
+              className="inline-flex min-h-11 items-center rounded-full bg-brand px-5 text-sm font-medium text-white transition-colors hover:bg-brand-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              Continue shopping
+            </Link>
+            <Link
+              href="/orders"
+              className="inline-flex min-h-11 items-center rounded-full border border-line bg-surface px-5 text-sm font-medium text-ink transition-colors hover:bg-tile focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              View my orders
+            </Link>
+          </div>
+        </>
+      ) : null}
+
       <header className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
           Order {order.orderNumber}
