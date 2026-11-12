@@ -16,11 +16,19 @@ import {
 import { site } from '@/config/site';
 import { cn } from '@/lib/utils/cn';
 
-const rowClass = 'mx-auto flex h-[72px] max-w-[1280px] items-center gap-3 px-4 sm:px-10';
+/**
+ * Mobile row (below md): [menu] [centred wordmark] [account, cart].
+ * Desktop row (md+): the original flex layout with the logo on the left.
+ */
+const rowClass =
+  'mx-auto grid h-[72px] max-w-[1280px] grid-cols-[44px_1fr_88px] items-center gap-2 px-4 sm:px-10 md:flex md:gap-3';
 const focusClass =
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 /** 44×44px minimum touch target for the header icon buttons. */
 const iconButtonClass = 'flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-tile';
+/** Desktop-only icon button (search lives in the mobile menu panel below md). */
+const iconButtonDesktopClass =
+  'hidden size-11 shrink-0 items-center justify-center rounded-full hover:bg-tile md:flex';
 
 export function Header() {
   const { user, loading, logout } = useAuth();
@@ -103,20 +111,27 @@ export function Header() {
           <MenuIcon className="size-5 text-ink" />
         </button>
 
-        {/* Left: logo mark + wordmark + tagline. The wordmark never wraps; the
-            tagline is hidden on very narrow screens so nothing overflows at 320px. */}
-        <Link
-          href="/"
-          className={cn('flex min-w-0 flex-1 items-center gap-2.5 md:flex-none', focusClass)}
-        >
+        {/* Mobile: centred wordmark on one line (never truncated). The brand mark
+            is dropped below 360px so the full name still fits at 320px. */}
+        <div className="flex min-w-0 justify-center md:hidden">
+          <Link href="/" className={cn('flex min-w-0 items-center gap-2', focusClass)}>
+            <span className="hidden size-7 shrink-0 items-center justify-center rounded-lg bg-brand text-white min-[360px]:flex">
+              <BagIcon className="size-4" />
+            </span>
+            <span className="whitespace-nowrap text-[17px] font-bold leading-none tracking-tight text-ink">
+              {site.name}
+            </span>
+          </Link>
+        </div>
+
+        {/* Desktop (md+): logo mark + wordmark + tagline, on the left. */}
+        <Link href="/" className={cn('hidden items-center gap-2.5 md:flex', focusClass)}>
           <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand text-white">
             <BagIcon className="size-4" />
           </span>
-          <span className="flex min-w-0 flex-col leading-none">
-            <span className="truncate text-xl font-bold tracking-tight text-ink">{site.name}</span>
-            <span className="mt-1 hidden text-[10px] font-medium text-muted min-[400px]:block">
-              {site.tagline}
-            </span>
+          <span className="flex flex-col leading-none">
+            <span className="text-xl font-bold tracking-tight text-ink">{site.name}</span>
+            <span className="mt-1 text-[10px] font-medium text-muted">{site.tagline}</span>
           </span>
         </Link>
         {/* Center (desktop): main navigation. */}
@@ -144,10 +159,10 @@ export function Header() {
         </nav>
 
         {/* Right: search, account, cart. */}
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-0 md:gap-1">
           <button
             type="button"
-            className={cn(iconButtonClass, focusClass)}
+            className={cn(iconButtonDesktopClass, focusClass)}
             aria-expanded={searchOpen}
             aria-controls="header-search-panel"
             aria-label={searchOpen ? 'Close search' : 'Search products'}
@@ -274,6 +289,7 @@ export function Header() {
         id="mobile-nav"
       >
         <nav aria-label="Mobile navigation" className="flex flex-col gap-1 px-4 py-3">
+          {/* Search lives here on mobile (the header icon is desktop-only). */}
           <form role="search" onSubmit={onSearch} className="mb-2">
             <label htmlFor="mobile-search" className="sr-only">
               Search products
@@ -285,7 +301,7 @@ export function Header() {
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search products…"
               className={cn(
-                'h-10 w-full rounded-full border border-line bg-tile px-4 text-sm text-ink placeholder:text-muted',
+                'h-11 w-full rounded-full border border-line bg-tile px-4 text-sm text-ink placeholder:text-muted',
                 focusClass,
               )}
             />
