@@ -23,6 +23,11 @@ import {
   type AddressFormValues,
 } from '@/lib/validation/address';
 import { fieldErrorsFromApi } from '@/lib/validation/server-errors';
+import {
+  clearCheckoutDraft,
+  readCheckoutDraft,
+  saveCheckoutDraft,
+} from '@/lib/checkout/draft';
 
 type AddressesState =
   | { status: 'loading' }
@@ -36,42 +41,12 @@ const emptyAddress: AddressFormValues = {
   country: 'Bangladesh',
 };
 
-/** Session-only draft key — cleared as soon as the order is placed. */
-const DRAFT_KEY = 'al_checkout_draft';
 /** Field order used by the error summary and focus handling. */
 const FIELD_ORDER: Array<keyof AddressFormValues> = ['fullName', 'phone', 'line1'];
 const FIELD_LABELS: Partial<Record<keyof AddressFormValues, string>> = {
   fullName: 'Full name',
   phone: 'Phone number',
   line1: 'Address',
-};
-
-type Draft = Pick<AddressFormValues, 'fullName' | 'phone' | 'line1'> & { saveAddress?: boolean };
-
-const readDraft = (): Draft | null => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  try {
-    const raw = window.sessionStorage.getItem(DRAFT_KEY);
-    if (!raw) {
-      return null;
-    }
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null) {
-      return null;
-    }
-    const candidate = parsed as Record<string, unknown>;
-    const text = (value: unknown): string => (typeof value === 'string' ? value : '');
-    return {
-      fullName: text(candidate.fullName),
-      phone: text(candidate.phone),
-      line1: text(candidate.line1),
-      saveAddress: candidate.saveAddress === true,
-    };
-  } catch {
-    return null;
-  }
 };
 
 export function CheckoutClient() {
@@ -101,7 +76,7 @@ export function CheckoutClient() {
 
   // Restore an in-session draft (name/phone/address only) after mount.
   useEffect(() => {
-    const draft = readDraft();
+    const draft = readCheckoutDraft();
     if (!draft) {
       return;
     }
@@ -119,27 +94,17 @@ export function CheckoutClient() {
 
   // Keep the draft in sessionStorage while the shopper types.
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    const hasInput = addressValues.fullName || addressValues.phone || addressValues.line1;
+    if (!hasInput) {
+      clearCheckoutDraft();
       return;
     }
-    const hasInput = addressValues.fullName || addressValues.phone || addressValues.line1;
-    try {
-      if (!hasInput) {
-        window.sessionStorage.removeItem(DRAFT_KEY);
-        return;
-      }
-      window.sessionStorage.setItem(
-        DRAFT_KEY,
-        JSON.stringify({
-          fullName: addressValues.fullName,
-          phone: addressValues.phone,
-          line1: addressValues.line1,
-          saveAddress,
-        }),
-      );
-    } catch {
-      // Storage unavailable — the form still works for this page view.
-    }
+    saveCheckoutDraft({
+      fullName: addressValues.fullName,
+      phone: addressValues.phone,
+      line1: addressValues.line1,
+      saveAddress,
+    });
   }, [addressValues.fullName, addressValues.phone, addressValues.line1, saveAddress]);
 
   useEffect(() => {
@@ -284,11 +249,7 @@ export function CheckoutClient() {
       // Clear the local cart immediately so the header badge shows 0 before the
       // confirmation page renders (the server already emptied the cart).
       resetCart();
-      try {
-        window.sessionStorage.removeItem(DRAFT_KEY);
-      } catch {
-        // Storage unavailable — nothing to clear.
-      }
+      clearCheckoutDraft();
       // Keep `submitting` true: the button stays disabled until navigation.
       router.push(`/orders/${order.id}?placed=1`);
     } catch (error) {
