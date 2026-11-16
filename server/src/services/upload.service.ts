@@ -120,6 +120,18 @@ export const destroyImageAssets = async (publicIds: Array<string | null>): Promi
 };
 
 /**
+ * Destroys assets uploaded through the admin but never attached to a saved
+ * product (image removed before saving, or an abandoned new-product form).
+ * Only public ids inside our own folder are accepted, so this can never be used
+ * to delete unrelated Cloudinary assets.
+ */
+export const destroyOwnedAssets = async (publicIds: string[]): Promise<void> => {
+  const prefix = `${CLOUDINARY_FOLDER}/`;
+  const owned = publicIds.filter((publicId) => publicId.startsWith(prefix));
+  await destroyImageAssets(owned);
+};
+
+/**
  * Validates buffered images (magic bytes), uploads them to Cloudinary and
  * returns the secure URL + public_id for each. Nothing touches local disk.
  */

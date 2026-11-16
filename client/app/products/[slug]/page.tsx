@@ -3,6 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { ProductGallery } from "@/components/catalog/ProductGallery";
+import {
+  pickInitialSelection,
+  ProductSelectionProvider,
+} from "@/components/catalog/ProductSelection";
 import { NewArrivalBadge } from "@/components/catalog/NewArrivalBadge";
 import { ProductCard, ProductImage } from "@/components/catalog/ProductCard";
 import { ProductTabs } from "@/components/catalog/ProductTabs";
@@ -174,39 +178,50 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
       </nav>
 
       <div className="grid gap-8 md:grid-cols-2 md:gap-12">
-        <ProductGallery images={product.images} name={product.name} />
-
-        <div className="flex flex-col gap-4">
-          <NewArrivalBadge isNew={isNew} />
-          <h1 className="text-3xl font-bold leading-[1.1] tracking-[-0.02em] text-ink sm:text-[38px]">
-            {product.name}
-          </h1>
-
-          <PurchasePanel
-            productName={product.name}
-            basePrice={product.basePrice}
-            compareAtPrice={product.compareAtPrice}
-            discountPercent={product.discountPercent}
-            variants={variants}
-            sizeGuideKey={sizeGuideKey}
-            description={product.description}
+        <ProductSelectionProvider initial={pickInitialSelection(variants)}>
+          <ProductGallery
+            images={product.images}
+            name={product.name}
+            variants={variants.map((variant) => ({
+              id: variant.id,
+              size: variant.size,
+              color: variant.color,
+              images: variant.images,
+            }))}
           />
 
-          <ul className="grid grid-cols-1 gap-3 border-t border-line pt-5 sm:grid-cols-3">
-            {site.productPage.trust.map((item, index) => {
-              const Icon = productTrustIcons[index] ?? ShieldIcon;
-              return (
-                <li key={item.title} className="flex items-start gap-2.5">
-                  <Icon className="mt-0.5 size-4 shrink-0 text-ink" />
-                  <div>
-                    <p className="text-[12px] font-semibold text-ink">{item.title}</p>
-                    <p className="mt-0.5 text-[11px] leading-snug text-muted">{item.text}</p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+          <div className="flex flex-col gap-4">
+            <NewArrivalBadge isNew={isNew} />
+            <h1 className="text-3xl font-bold leading-[1.1] tracking-[-0.02em] text-ink sm:text-[38px]">
+              {product.name}
+            </h1>
+
+            <PurchasePanel
+              productName={product.name}
+              basePrice={product.basePrice}
+              compareAtPrice={product.compareAtPrice}
+              discountPercent={product.discountPercent}
+              variants={variants}
+              sizeGuideKey={sizeGuideKey}
+              description={product.description}
+            />
+
+            <ul className="grid grid-cols-1 gap-3 border-t border-line pt-5 sm:grid-cols-3">
+              {site.productPage.trust.map((item, index) => {
+                const Icon = productTrustIcons[index] ?? ShieldIcon;
+                return (
+                  <li key={item.title} className="flex items-start gap-2.5">
+                    <Icon className="mt-0.5 size-4 shrink-0 text-ink" />
+                    <div>
+                      <p className="text-[12px] font-semibold text-ink">{item.title}</p>
+                      <p className="mt-0.5 text-[11px] leading-snug text-muted">{item.text}</p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </ProductSelectionProvider>
       </div>
 
       {/* Details tabs + lifestyle image */}

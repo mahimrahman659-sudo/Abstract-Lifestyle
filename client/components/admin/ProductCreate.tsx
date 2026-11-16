@@ -93,6 +93,7 @@ export function ProductCreate() {
         <ProductForm
           initialValues={{
             name: '',
+            slug: '',
             description: '',
             categoryId: '',
             takaPrice: '',
@@ -105,6 +106,7 @@ export function ProductCreate() {
           submitLabel="Create product"
           notice={notice}
           onSubmit={handleCreate}
+          allowActiveStatus={false}
         />
       </section>
     </div>

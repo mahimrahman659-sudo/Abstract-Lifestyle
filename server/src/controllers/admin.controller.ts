@@ -3,6 +3,7 @@ import {
   createCategory,
   createProduct,
   createVariant,
+  createVariantsBulk,
   deleteCategory,
   deleteProduct,
   deleteVariant,
@@ -16,7 +17,12 @@ import {
 import { adminIdParamsSchema, adminVariantQuerySchema } from '../schemas/admin.schema.js';
 import { createCategorySchema, updateCategorySchema } from '../schemas/category.schema.js';
 import { createProductSchema, updateProductSchema } from '../schemas/product.schema.js';
-import { createVariantSchema, updateVariantSchema } from '../schemas/variant.schema.js';
+import {
+  bulkCreateVariantsSchema,
+  createVariantSchema,
+  updateVariantSchema,
+} from '../schemas/variant.schema.js';
+import { destroyAssetsSchema } from '../schemas/upload.schema.js';
 import { siteImageKeySchema, updateSiteImageSchema } from '../schemas/site-image.schema.js';
 import { listSiteImages, updateSiteImage } from '../services/site-image.service.js';
 
@@ -65,6 +71,13 @@ export const createVariantHandler: RequestHandler = async (req, res) => {
   res.status(201).json({ variant: await createVariant(id, input) });
 };
 
+/** Adds one variant per size in a single request (S/M/L/XL in one colour). */
+export const createVariantsBulkHandler: RequestHandler = async (req, res) => {
+  const { id } = adminIdParamsSchema.parse(req.params);
+  const input = bulkCreateVariantsSchema.parse(req.body);
+  res.status(201).json({ variants: await createVariantsBulk(id, input) });
+};
+
 export const updateVariantHandler: RequestHandler = async (req, res) => {
   const { id } = adminIdParamsSchema.parse(req.params);
   const input = updateVariantSchema.parse(req.body);
@@ -92,7 +105,7 @@ export const getProductHandler: RequestHandler = async (req, res) => {
   res.status(200).json(await getProductAdmin(id));
 };
 
-import { saveImages } from '../services/upload.service.js';
+import { destroyOwnedAssets, saveImages } from '../services/upload.service.js';
 import { adminGetOrder, adminListOrders, adminUpdateOrderStatus } from '../services/admin-order.service.js';
 import {
   adminGetCustomer,
@@ -117,6 +130,16 @@ export const uploadImagesHandler: RequestHandler = async (req, res) => {
 
   const urls = await saveImages(files);
   res.status(201).json({ assets: urls });
+};
+
+/**
+ * Destroys images that were uploaded but never attached to a saved product
+ * (removed from a form before saving), so Cloudinary holds no orphans.
+ */
+export const destroyUploadedAssetsHandler: RequestHandler = async (req, res) => {
+  const input = destroyAssetsSchema.parse(req.body);
+  await destroyOwnedAssets(input.publicIds);
+  res.status(204).end();
 };
 
 export const adminListOrdersHandler: RequestHandler = async (req, res) => {

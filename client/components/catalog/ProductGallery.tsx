@@ -3,6 +3,7 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { ImageZoomDialog } from '@/components/catalog/ImageZoomDialog';
 import { ProductImage } from '@/components/catalog/ProductCard';
+import { useProductSelectionContext } from '@/components/catalog/ProductSelection';
 import { BrandPanel } from '@/components/ui/BrandPanel';
 import { cn } from '@/lib/utils/cn';
 
@@ -85,17 +86,57 @@ function ThumbnailList({ images, name, selected, onSelect, className, label }: T
  * - Mobile: horizontal swipe strip (scroll-snap) under the main image.
  * - Zoom dialog on the current image; placeholder when there are no images.
  */
-export function ProductGallery({ images, name }: { images: string[]; name: string }) {
-  const [selected, setSelected] = useState(0);
-  const current = images[selected] ?? null;
-  const currentAlt = images.length > 0 ? `${name} — image ${selected + 1}` : name;
+export interface GalleryVariant {
+  id: string;
+  size: string | null;
+  color: string | null;
+  images: string[];
+}
+
+export function ProductGallery({
+  images,
+  name,
+  variants = [],
+}: {
+  images: string[];
+  name: string;
+  /** Variants with their own images (the gallery follows the selected one). */
+  variants?: GalleryVariant[];
+}) {
+  const selection = useProductSelectionContext()?.selection ?? null;
+  const activeVariant =
+    selection === null
+      ? undefined
+      : variants.find(
+          (variant) => variant.size === selection.size && variant.color === selection.color,
+        );
+  // A variant's own images replace the product gallery while it is selected.
+  const displayImages =
+    activeVariant && activeVariant.images.length > 0 ? activeVariant.images : images;
+
+  // Reset to the first image whenever the active variant changes, without an
+  // effect: the index is stored together with the key it belongs to.
+  const galleryKey = activeVariant?.id ?? 'product';
+  const [picked, setPicked] = useState<{ key: string; index: number }>({
+    key: galleryKey,
+    index: 0,
+  });
+  const selected =
+    picked.key === galleryKey
+      ? Math.min(picked.index, Math.max(displayImages.length - 1, 0))
+      : 0;
+  const setSelected = (index: number) => setPicked({ key: galleryKey, index });
+
+  const current = displayImages[selected] ?? null;
+  const currentAlt =
+    displayImages.length > 0 ? `${name} — image ${selected + 1}` : name;
 
   return (
     <div>
       <div className="flex gap-3 sm:gap-4">
-        {images.length > 1 ? (
+        {displayImages.length > 1 ? (
           <ThumbnailList
-            images={images}
+            images={displayImages}
             name={name}
             selected={selected}
             onSelect={setSelected}
@@ -105,7 +146,7 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
         ) : null}
 
         <div className="relative aspect-[4/5] w-full flex-1 overflow-hidden rounded-2xl border border-line bg-tile">
-          {images.length === 0 ? (
+          {displayImages.length === 0 ? (
             <BrandPanel label={`${name} — photos coming soon`} caption="Abstract Lifestyle" />
           ) : (
             <ImageZoomDialog src={current} alt={currentAlt} />
@@ -114,9 +155,9 @@ export function ProductGallery({ images, name }: { images: string[]; name: strin
       </div>
 
       {/* Mobile: swipeable strip of thumbnails (up to 5 visible; scrolls beyond). */}
-      {images.length > 1 ? (
+      {displayImages.length > 1 ? (
         <ThumbnailList
-          images={images}
+          images={displayImages}
           name={name}
           selected={selected}
           onSelect={setSelected}

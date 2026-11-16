@@ -10,6 +10,11 @@ import { Notice, type NoticeTone } from '@/components/ui/Notice';
 import { Price } from '@/components/ui/Price';
 import { ApiError } from '@/lib/api/client';
 import { getSwatchColor, isLightSwatch } from '@/lib/catalog/color-map';
+import { sortSizes } from '@/lib/catalog/size-order';
+import {
+  pickInitialSelection,
+  useProductSelectionContext,
+} from '@/components/catalog/ProductSelection';
 import type { PublicVariant } from '@/lib/types';
 import { cn } from '@/lib/utils/cn';
 
@@ -31,7 +36,16 @@ interface PanelNotice {
 }
 
 const uniqueOptions = (values: Array<string | null>): string[] =>
-  Array.from(new Set(values.filter((value): value is string => value !== null))).sort();
+  sortSizes(
+    Array.from(
+      new Set(
+        values
+          .filter((value): value is string => value !== null)
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0),
+      ),
+    ),
+  );
 
 const stockLabel = (variant: PublicVariant): string => {
   if (variant.stock === 0) {
@@ -39,9 +53,6 @@ const stockLabel = (variant: PublicVariant): string => {
   }
   return variant.lowStock ? `Only ${variant.stock} left` : 'In stock';
 };
-
-const pickInitialVariant = (variants: PublicVariant[]): PublicVariant | null =>
-  variants.find((variant) => variant.stock > 0) ?? variants[0] ?? null;
 
 export function PurchasePanel({
   productName,
@@ -56,10 +67,12 @@ export function PurchasePanel({
   const sizes = useMemo(() => uniqueOptions(variants.map((variant) => variant.size)), [variants]);
   const colors = useMemo(() => uniqueOptions(variants.map((variant) => variant.color)), [variants]);
 
-  const [selection, setSelection] = useState(() => {
-    const initial = pickInitialVariant(variants);
-    return { size: initial?.size ?? null, color: initial?.color ?? null };
-  });
+  // The PDP provider shares this selection with the gallery, which then shows
+  // the selected variant's own images. Outside the PDP it stays local state.
+  const sharedSelection = useProductSelectionContext();
+  const [ownSelection, setOwnSelection] = useState(() => pickInitialSelection(variants));
+  const selection = sharedSelection?.selection ?? ownSelection;
+  const setSelection = sharedSelection?.setSelection ?? setOwnSelection;
   const [quantity, setQuantity] = useState(1);
   const [adding, setAdding] = useState(false);
   const [notice, setNotice] = useState<PanelNotice | null>(null);

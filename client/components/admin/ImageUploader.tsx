@@ -39,6 +39,8 @@ export function ImageUploader({ images, onChange, disabled = false }: ImageUploa
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState<UploadNotice | null>(null);
+  /** public ids uploaded in this session (removing one deletes the asset). */
+  const sessionUploads = useRef<Set<string>>(new Set());
 
   const handleFiles = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
@@ -61,24 +63,40 @@ export function ImageUploader({ images, onChange, disabled = false }: ImageUploa
         valid.push(file);
       }
     }
-    if (images.length + valid.length > MAX_IMAGES) {
+    if (images.length >= MAX_IMAGES) {
       setNotice({ tone: 'error', message: `A product can have at most ${MAX_IMAGES} images.` });
       return;
     }
-    if (valid.length === 0) {
-      setNotice({ tone: 'error', message: problems.join(' · ') });
+    // Keep the valid files that fit instead of rejecting the whole batch.
+    const remaining = MAX_IMAGES - images.length;
+    const accepted = valid.slice(0, remaining);
+    const overLimit = valid.length - accepted.length;
+    if (accepted.length === 0) {
+      setNotice({
+        tone: 'error',
+        message: problems.join(' · ') || `A product can have at most ${MAX_IMAGES} images.`,
+      });
       return;
     }
 
     setUploading(true);
     setNotice(null);
     try {
-      const { assets } = await adminApi.uploadImages(valid);
+      const { assets } = await adminApi.uploadImages(accepted);
+      for (const asset of assets) {
+        if (asset.publicId) {
+          sessionUploads.current.add(asset.publicId);
+        }
+      }
       onChange([...images, ...assets]);
+      const skipped = [
+        ...problems,
+        ...(overLimit > 0 ? [`${overLimit} file${overLimit === 1 ? '' : 's'} over the ${MAX_IMAGES}-image limit`] : []),
+      ];
       setNotice({
         tone: 'success',
         message: `Uploaded ${assets.length} image${assets.length === 1 ? '' : 's'}.${
-          problems.length > 0 ? ` Skipped: ${problems.join(' · ')}` : ''
+          skipped.length > 0 ? ` Skipped: ${skipped.join(' · ')}` : ''
         }`,
       });
     } catch (error) {
@@ -109,6 +127,13 @@ export function ImageUploader({ images, onChange, disabled = false }: ImageUploa
   };
 
   const remove = (index: number) => {
+    const target = images[index];
+    // An asset uploaded in this session was never attached to a saved product,
+    // so deleting it here keeps Cloudinary free of orphans. Best effort only.
+    if (target?.publicId && sessionUploads.current.has(target.publicId)) {
+      sessionUploads.current.delete(target.publicId);
+      void adminApi.destroyImages([target.publicId]).catch(() => undefined);
+    }
     onChange(images.filter((_, position) => position !== index));
   };
 

@@ -167,12 +167,13 @@ export function ProductsManager() {
               inside this scroll container; otherwise it resolves against the initial
               containing block and extends the document width. */}
           <div className="relative overflow-x-auto rounded-2xl border border-line bg-surface">
-            <table className="w-full min-w-[720px] text-left text-sm">
+            <table className="w-full min-w-[820px] text-left text-sm">
               <thead>
                 <tr className="border-b border-line text-xs uppercase tracking-wide text-muted">
                   <th scope="col" className="px-4 py-3">Product</th>
                   <th scope="col" className="px-4 py-3">Category</th>
                   <th scope="col" className="px-4 py-3">Price</th>
+                  <th scope="col" className="px-4 py-3">Stock</th>
                   <th scope="col" className="px-4 py-3">Status</th>
                   <th scope="col" className="px-4 py-3"><span className="sr-only">Actions</span></th>
                 </tr>
@@ -187,6 +188,20 @@ export function ProductsManager() {
                     <td className="px-4 py-3 text-muted">{categoryNames[product.category] ?? '—'}</td>
                     <td className="px-4 py-3 text-ink">
                       <Price poisha={product.basePrice} />
+                    </td>
+                    <td className="px-4 py-3">
+                      {product.variantCount === 0 ? (
+                        <span className="inline-flex rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning">
+                          No variants
+                        </span>
+                      ) : (
+                        <>
+                          <span className="text-ink">{product.totalStock}</span>
+                          <span className="ml-1 text-xs text-muted">
+                            in {product.variantCount} variant{product.variantCount === 1 ? '' : 's'}
+                          </span>
+                        </>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span

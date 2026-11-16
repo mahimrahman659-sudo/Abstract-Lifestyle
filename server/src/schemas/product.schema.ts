@@ -12,6 +12,17 @@ const productImageSchema = z.union([
 
 const productShape = z.object({
   name: z.string().trim().min(1).max(120),
+  /**
+   * Public URL slug. Optional: derived from the name on create and only changed
+   * when the admin edits it explicitly, so renaming never breaks live links.
+   */
+  slug: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use lowercase letters, numbers and dashes only')
+    .optional(),
   description: z.string().trim().min(1).max(2000),
   category: objectIdSchema,
   basePrice: z.number().int().min(0),

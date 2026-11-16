@@ -118,6 +118,11 @@ npm run seed:prod -- --admin-only   # admin + category trees only, no demo produ
 - [ ] Promote/demote accounts with `npm run set-role:prod -- --email <email> --role <admin|customer>`
       (existing users only — the account must sign in once first; it never creates users, never
       touches passwords, and refuses to demote the last remaining admin)
+- [ ] After deploying the variant normalisation change, run
+      `npm run normalize-variants:prod` once against the live database (dry-run: it only reports),
+      review the list, then re-run with `-- --apply`. It normalises legacy size/colour values
+      (`s` → `S`, `white` → `White`, blanks → none) and skips any row that would collide with an
+      existing size/colour pair. Safe to run again; a second run reports 0 changes.
 - [ ] Never reuse the example credentials from `.env.example`
 
 ## 7. Final go-live checks
@@ -125,7 +130,7 @@ npm run seed:prod -- --admin-only   # admin + category trees only, no demo produ
 - [ ] `npm run build` succeeds for both apps; API `npm start` serves `GET /api/health` → `200`
 - [ ] Storefront `npm run build && npm start` responds on the public origin
 - [ ] `https://<origin>/robots.txt` disallows `/admin`, `/checkout`, `/cart`, `/orders`, `/login`, `/register`
-- [ ] `https://<origin>/sitemap.xml` lists home, products and categories
+- [ ] `https://<origin>/sitemap.xml` lists home, products, product pages and categories
 - [ ] Smoke test: browse → add to cart → register → checkout (COD) → order confirmation → cancel
 - [ ] Admin smoke test: product/variant CRUD, image upload, order status transitions
 - [ ] Type-check + lint are clean in both apps

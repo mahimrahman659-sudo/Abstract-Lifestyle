@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { catalogApi } from '@/lib/api/catalog';
 import { ApiError } from '@/lib/api/client';
 import { isCreatedAfter, NEW_BADGE_WINDOW_MS } from '@/lib/catalog/new-badge';
+import { sortSizes } from '@/lib/catalog/size-order';
 import { PRODUCT_GRID_CLASS, PRODUCT_GRID_ITEM_CLASS } from '@/lib/catalog/grid';
 import { cn } from '@/lib/utils/cn';
 import {
@@ -36,7 +37,7 @@ const deriveFacets = (products: ProductCardData[]): CatalogFacets => {
     product.colors.forEach((color) => colors.add(color));
   }
   return {
-    sizes: Array.from(sizes).sort(),
+    sizes: sortSizes(Array.from(sizes)),
     colors: Array.from(colors).sort(),
   };
 };

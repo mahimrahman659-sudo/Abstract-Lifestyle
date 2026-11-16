@@ -105,6 +105,27 @@ export const fetchCategorySlugsForSitemap = async (): Promise<string[]> => {
   }
 };
 
+export interface SitemapProductEntry {
+  slug: string;
+  updatedAt: string;
+}
+
+/** Sitemap: active product slugs with a safe fallback when the API is unavailable. */
+export const fetchProductsForSitemap = async (): Promise<SitemapProductEntry[]> => {
+  try {
+    const response = await fetch(`${API_URL}/api/products/sitemap`, {
+      next: { revalidate: 3600 },
+    });
+    if (!response.ok) {
+      return [];
+    }
+    const data = (await response.json()) as { items: SitemapProductEntry[] };
+    return data.items;
+  } catch {
+    return [];
+  }
+};
+
 /**
  * Related products for the product detail page: newest products in the same
  * category via the existing list endpoint, excluding the current product.

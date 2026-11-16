@@ -10,9 +10,11 @@ import {
   createCategoryHandler,
   createProductHandler,
   createVariantHandler,
+  createVariantsBulkHandler,
   deleteCategoryHandler,
   deleteProductHandler,
   deleteVariantHandler,
+  destroyUploadedAssetsHandler,
   getProductHandler,
   listProductsHandler,
   listVariantsHandler,
@@ -28,7 +30,12 @@ import { validateBody } from '../middleware/validate.js';
 import { createCategorySchema, updateCategorySchema } from '../schemas/category.schema.js';
 import { createProductSchema, updateProductSchema } from '../schemas/product.schema.js';
 import { updateSiteImageSchema } from '../schemas/site-image.schema.js';
-import { createVariantSchema, updateVariantSchema } from '../schemas/variant.schema.js';
+import {
+  bulkCreateVariantsSchema,
+  createVariantSchema,
+  updateVariantSchema,
+} from '../schemas/variant.schema.js';
+import { destroyAssetsSchema } from '../schemas/upload.schema.js';
 
 export const adminRouter: Router = Router();
 
@@ -52,12 +59,23 @@ adminRouter.post(
   validateBody(createVariantSchema),
   createVariantHandler,
 );
+adminRouter.post(
+  '/products/:id/variants/bulk',
+  validateBody(bulkCreateVariantsSchema),
+  createVariantsBulkHandler,
+);
 adminRouter.get('/variants', listVariantsHandler);
 adminRouter.patch('/variants/:id', validateBody(updateVariantSchema), updateVariantHandler);
 adminRouter.delete('/variants/:id', deleteVariantHandler);
 
 // Uploads
 adminRouter.post('/uploads', uploadRateLimiter, uploadImages, uploadImagesHandler);
+// Orphan cleanup: assets uploaded but never attached to a saved product.
+adminRouter.post(
+  '/uploads/destroy',
+  validateBody(destroyAssetsSchema),
+  destroyUploadedAssetsHandler,
+);
 
 // Orders
 adminRouter.get('/orders', adminListOrdersHandler);

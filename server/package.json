@@ -12,6 +12,8 @@
     "seed:prod": "node dist/scripts/seed.js",
     "set-role": "tsx src/scripts/set-role.ts",
     "set-role:prod": "node dist/scripts/set-role.js",
+    "normalize-variants": "tsx src/scripts/normalize-variants.ts",
+    "normalize-variants:prod": "node dist/scripts/normalize-variants.js",
     "type-check": "tsc --noEmit",
     "lint": "eslint ."
   },

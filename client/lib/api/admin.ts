@@ -5,6 +5,7 @@ import type {
   AdminProduct,
   AdminProductDetail,
   AdminVariant,
+  BulkVariantPayload,
   CreateCategoryPayload,
   CreateProductPayload,
   ListEnvelope,
@@ -76,6 +77,11 @@ export const adminApi = {
       method: 'POST',
       body: payload,
     }),
+  createVariantsBulk: (productId: string, payload: BulkVariantPayload) =>
+    apiFetch<{ variants: AdminVariant[] }>(`/admin/products/${productId}/variants/bulk`, {
+      method: 'POST',
+      body: payload,
+    }),
   updateVariant: (id: string, payload: Partial<VariantPayload>) =>
     apiFetch<{ variant: AdminVariant }>(`/admin/variants/${id}`, { method: 'PATCH', body: payload }),
   deleteVariant: (id: string) =>
@@ -94,6 +100,9 @@ export const adminApi = {
       body: form,
     });
   },
+  /** Deletes assets uploaded in this session but removed before saving. */
+  destroyImages: (publicIds: string[]) =>
+    apiFetch<void>('/admin/uploads/destroy', { method: 'POST', body: { publicIds } }),
 
   // Site images (storefront marketing slots)
   getSiteImages: () => apiFetch<{ items: SiteImage[] }>('/admin/site-images'),

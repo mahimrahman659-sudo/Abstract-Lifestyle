@@ -341,6 +341,27 @@ const resolveSizeGuideKey = async (
   return null;
 };
 
+const SITEMAP_PRODUCT_LIMIT = 5000;
+
+/**
+ * Active product slugs for `/sitemap.xml`. Deliberately tiny (no variants,
+ * prices or images) and capped so a large catalog cannot exhaust memory.
+ */
+export const listSitemapProducts = async (): Promise<
+  Array<{ slug: string; updatedAt: string }>
+> => {
+  const products = await ProductModel.find({ status: 'active' })
+    .select('slug updatedAt')
+    .sort({ updatedAt: -1 })
+    .limit(SITEMAP_PRODUCT_LIMIT)
+    .exec();
+
+  return products.map((product) => ({
+    slug: product.slug,
+    updatedAt: product.updatedAt.toISOString(),
+  }));
+};
+
 export const getProductBySlug = async (slug: string): Promise<ProductDetail> => {
   const product = await ProductModel.findOne({ slug, status: 'active' }).exec();
   if (!product) {

@@ -36,6 +36,8 @@ export function ProductEdit({ productId }: { productId: string }) {
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  /** Bumped after a save so the form resets from the server's saved values. */
+  const [formVersion, setFormVersion] = useState(0);
 
   useEffect(() => {
     // Deferred into an async task (react-hooks/set-state-in-effect).
@@ -98,6 +100,9 @@ export function ProductEdit({ productId }: { productId: string }) {
       try {
         await adminApi.updateProduct(productId, payload);
         await reload();
+        // Re-key the form so it shows the values the server actually stored
+        // (normalised images/price) and clears the uploader's session state.
+        setFormVersion((version) => version + 1);
         setNotice({ tone: 'success', message: 'Product saved.' });
       } catch (error) {
         setNotice({
@@ -183,6 +188,10 @@ export function ProductEdit({ productId }: { productId: string }) {
   }
 
   const { product, variants } = detail.data;
+  const publishBlockers = [
+    variants.length === 0 ? 'add at least one variant' : null,
+    product.images.length === 0 ? 'add at least one image' : null,
+  ].filter((item): item is string => item !== null);
 
   return (
     <div className="space-y-6">
@@ -195,7 +204,14 @@ export function ProductEdit({ productId }: { productId: string }) {
 
       {created ? (
         <Notice tone="success">
-          Product created. Add at least one variant below before publishing it (status “active”).
+          Product created. Add its variants and images below, then set the status to Active to
+          publish it.
+        </Notice>
+      ) : null}
+
+      {product.status !== 'active' && publishBlockers.length > 0 ? (
+        <Notice tone="info">
+          Not live yet — {publishBlockers.join(' and ')} before switching the status to Active.
         </Notice>
       ) : null}
 
@@ -204,9 +220,10 @@ export function ProductEdit({ productId }: { productId: string }) {
           Product details
         </h2>
         <ProductForm
-          key={`${product.id}-${product.status}`}
+          key={`${product.id}-${product.status}-${formVersion}`}
           initialValues={{
             name: product.name,
+            slug: product.slug,
             description: product.description,
             categoryId: product.category,
             takaPrice: poishaToTakaInput(product.basePrice),
@@ -241,7 +258,12 @@ export function ProductEdit({ productId }: { productId: string }) {
         />
       </section>
 
-      <VariantManager productId={product.id} variants={variants} reload={reload} />
+      <VariantManager
+        productId={product.id}
+        variants={variants}
+        productImages={product.images.map((image) => image.url)}
+        reload={reload}
+      />
 
       <ConfirmDialog
         open={dialog === 'archive'}

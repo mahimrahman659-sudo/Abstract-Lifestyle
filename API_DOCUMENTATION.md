@@ -32,6 +32,7 @@ Codes: `VALIDATION_ERROR` 400 · `UNAUTHORIZED` 401 · `FORBIDDEN` 403 · `NOT_F
 |---|---|---|
 | GET /categories | — | 200 `{ items: [Category + children[]] }` |
 | GET /products | query: `search`, `category` (slug, includes children), `minPrice`, `maxPrice` (poisha), `sizes` (csv), `colors` (csv), `sort` = newest \| price_asc \| price_desc \| relevance, `page`, `limit` | 200 list envelope of ProductCard |
+| GET /products/sitemap | — | 200 `{ items: [{ slug, updatedAt }] }` — active product slugs for the client sitemap (capped at 5000, no catalog payload) |
 | GET /products/:slug | — | 200 `{ product, variants: [Variant], sizeGuideKey: 'clothing' \| null }` |
 | GET /site-images | — | 200 `{ items: [{ key, image }] }` — storefront marketing slots (`hero`, `promo-1`, `promo-2`); `image` = `{ url, publicId }` or `null` when empty |
 | GET /health | — | 200 `{ ok: true }` |
@@ -70,16 +71,18 @@ Order JSON: `{ id, orderNumber, checkoutId, status, paymentMethod, paymentStatus
 | DELETE /admin/categories/:id | — | 204 (409 if it has subcategories or products) |
 | GET /admin/products | `?search&status&page&limit` | 200 list envelope (all statuses; `status` = draft \| active \| archived) |
 | GET /admin/products/:id | — | 200 `{ product, variants[] }` (any status — for editing) |
-| POST /admin/products | `{ name, description, category, basePrice, images[{ url, publicId }], status }` | 201 `{ product }` — slug generated from name (unique); removed image assets are deleted from Cloudinary |
-| PATCH /admin/products/:id | partial | 200 `{ product }` |
+| POST /admin/products | `{ name, slug?, description, category, basePrice, images[{ url, publicId }], status }` | 201 `{ product }` — `slug` defaults to the slugified name (unique); only leaf categories are accepted; new products must be `draft` (400 if `active`) |
+| PATCH /admin/products/:id | partial | 200 `{ product }` — `slug` changes only when sent explicitly (renaming never breaks links); switching to `active` requires ≥ 1 variant and ≥ 1 image (400 otherwise) |
 | DELETE /admin/products/:id | — | 204 hard delete; **200 `{ product, archived: true }` when referenced by orders** (archived, not deleted) |
-| POST /admin/products/:id/variants | `{ sku, size?, color?, price?, stock, lowStockThreshold? }` | 201 `{ variant }` (409 on duplicate SKU or duplicate size/color) |
-| PATCH /admin/variants/:id | partial | 200 `{ variant }` — stock set with `$set`, non-negative integers only |
+| POST /admin/products/:id/variants | `{ sku, size?, color?, price?, compareAtPrice?, stock, lowStockThreshold?, images? }` | 201 `{ variant }` (409 on duplicate SKU or duplicate size/color; `size` normalized — apparel upper-cased, blank → `null`; `color` title-cased) |
+| POST /admin/products/:id/variants/bulk | `{ skuPrefix, color?, price?, compareAtPrice?, lowStockThreshold?, items: [{ size, stock }], images? }` | 201 `{ variants[] }` — one variant per size with SKU `PREFIX-SIZE`; all-or-nothing (rolled back on failure) |
+| PATCH /admin/variants/:id | partial, plus optional `expectedStock` | 200 `{ variant }` — stock edits are compare-and-set on `expectedStock` (409 when an order changed the stock meanwhile) |
 
 Sale pricing (admin): `POST/PATCH /admin/products` accept `compareAtPrice` (integer poisha; `null` clears it) and `variants` endpoints accept `compareAtPrice` (only used when the variant has its own `price`). A variant WITH its own price uses only its own compare-at (none = no sale); a variant WITHOUT its own price uses the product compare-at. Setting a compare-at that is not greater than the price returns 400 - Compare-at price must be greater than the price. Raising a price to or above the stored compare-at returns 400 - Price must be lower than the compare-at price. Clear or raise the compare-at price first. Public DTOs always return `discountPercent: 0` when the compare-at is not strictly greater than the price, so stale values never render a discount.
 | DELETE /admin/variants/:id | — | 204 (409 if it is the product's last variant) |
 | GET /admin/variants | `?lowStock=true&page&limit` | 200 list envelope (variant + product ref + `inStock`/`lowStock` flags) |
 | POST /admin/uploads | multipart `images[]` (jpeg/png/webp/heic/avif/bmp/tiff by content, ≤ 5 MB each, max 10) | 201 `{ assets: [{ url, publicId }] }` — content-verified (magic bytes) then uploaded to Cloudinary (`abstract-lifestyle/products`, cloud-generated public_id); HEIC/AVIF/BMP/TIFF are converted to JPEG on upload; `url` is the secure https URL |
+| POST /admin/uploads/destroy | `{ publicIds: string[] }` (1–20, own folder only) | 204 — deletes assets that were uploaded but never attached to a saved product (best-effort) |
 | GET /admin/site-images | — | 200 `{ items: [{ key, image }] }` — all marketing slots in canonical order |
 | PUT /admin/site-images/:key | `{ image: { url, publicId } \| null }` (`:key` = hero \| promo-1 \| promo-2) | 200 `{ item }` — upserts the slot; `null` clears it (replaces/removes destroy the previous Cloudinary asset, best-effort) |
 | GET /admin/orders | `?status&page&limit` | 200 list envelope (all orders) |

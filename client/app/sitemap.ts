@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { fetchCategorySlugsForSitemap } from "@/lib/api/server";
+import { fetchCategorySlugsForSitemap, fetchProductsForSitemap } from "@/lib/api/server";
 import { absoluteUrl } from "@/lib/seo";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -18,6 +18,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.7,
+    });
+  }
+
+  // Product pages (active products only); same safe fallback as above.
+  const products = await fetchProductsForSitemap();
+  for (const product of products) {
+    entries.push({
+      url: absoluteUrl(`/products/${encodeURIComponent(product.slug)}`),
+      lastModified: new Date(product.updatedAt),
+      changeFrequency: "weekly",
+      priority: 0.8,
     });
   }
 

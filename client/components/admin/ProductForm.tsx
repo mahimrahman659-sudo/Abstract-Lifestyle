@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ImageUploader } from '@/components/admin/ImageUploader';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -11,6 +11,8 @@ import { formatPoisha, parseTakaToPoisha } from '@/lib/utils/money';
 
 export interface ProductFormValues {
   name: string;
+  /** Public URL slug (lowercase, dashes). */
+  slug: string;
   description: string;
   categoryId: string;
   takaPrice: string;
@@ -33,10 +35,15 @@ interface ProductFormProps {
   notice: ProductFormNotice | null;
   onSubmit: (payload: CreateProductPayload) => void;
   extraActions?: ReactNode;
+  /**
+   * A new product cannot be published before it has variants and images, so the
+   * create form locks the status to draft; the edit form offers every status.
+   */
+  allowActiveStatus?: boolean;
 }
 
 type FieldErrors = Partial<
-  Record<'name' | 'description' | 'categoryId' | 'takaPrice' | 'compareAtTaka', string>
+  Record<'name' | 'slug' | 'description' | 'categoryId' | 'takaPrice' | 'compareAtTaka', string>
 >;
 
 const STATUS_OPTIONS: Array<{ value: ProductStatus; label: string }> = [
@@ -53,9 +60,25 @@ export function ProductForm({
   notice,
   onSubmit,
   extraActions,
+  allowActiveStatus = true,
 }: ProductFormProps) {
   const [values, setValues] = useState<ProductFormValues>(initialValues);
   const [errors, setErrors] = useState<FieldErrors>({});
+
+  // Unsaved changes: warn before a reload/tab close throws away typed data and
+  // uploaded images (the browser has no hook for in-app navigation).
+  const dirty = JSON.stringify(values) !== JSON.stringify(initialValues);
+  useEffect(() => {
+    if (!dirty || submitting) {
+      return;
+    }
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty, submitting]);
 
   const setField = <K extends keyof ProductFormValues>(field: K, value: ProductFormValues[K]) => {
     setValues((previous) => ({ ...previous, [field]: value }));
@@ -74,6 +97,11 @@ export function ProductForm({
       nextErrors.name = 'Name is required';
     } else if (name.length > 120) {
       nextErrors.name = 'Name must be at most 120 characters';
+    }
+
+    const slug = values.slug.trim();
+    if (slug.length > 0 && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+      nextErrors.slug = 'Use lowercase letters, numbers and single dashes, e.g. mens-pant';
     }
 
     const description = values.description.trim();
@@ -105,20 +133,38 @@ export function ProductForm({
 
     onSubmit({
       name,
+      slug: slug.length > 0 ? slug : undefined,
       description,
       category: values.categoryId,
       basePrice: price,
       compareAtPrice: compareAt,
       images: values.images,
-      status: values.status,
+      status: allowActiveStatus ? values.status : 'draft',
     });
   };
 
-  const categoryOptions: Array<{ id: string; label: string }> = [];
+  // Products live on leaf categories only; a parent category groups
+  // subcategories and cannot hold products itself.
+  const leafOptions: Array<{ id: string; label: string }> = [];
+  const allOptions: Array<{ id: string; label: string }> = [];
   for (const root of categories) {
-    categoryOptions.push({ id: root.id, label: root.name });
+    allOptions.push({ id: root.id, label: root.name });
+    if (root.children.length === 0) {
+      leafOptions.push({ id: root.id, label: root.name });
+    }
     for (const child of root.children) {
-      categoryOptions.push({ id: child.id, label: `— ${child.name}` });
+      const option = { id: child.id, label: `${root.name} / ${child.name}` };
+      allOptions.push(option);
+      leafOptions.push(option);
+    }
+  }
+  const categoryOptions = leafOptions.length > 0 ? leafOptions : allOptions;
+  if (values.categoryId && !categoryOptions.some((option) => option.id === values.categoryId)) {
+    // Legacy product filed on a parent category: keep it selectable so the
+    // admin can see where it is while moving it to a subcategory.
+    const current = allOptions.find((option) => option.id === values.categoryId);
+    if (current) {
+      categoryOptions.unshift({ ...current, label: `${current.label} (parent — pick a subcategory)` });
     }
   }
 
@@ -135,6 +181,15 @@ export function ProductForm({
         onChange={(event) => setField('name', event.target.value)}
       />
 
+      <Input
+        label="URL slug"
+        disabled={submitting}
+        value={values.slug}
+        error={errors.slug}
+        hint="Lowercase letters, numbers and dashes. Changing it breaks existing links to this product."
+        onChange={(event) => setField('slug', event.target.value.toLowerCase())}
+      />
+
       <div className="flex flex-col gap-1.5">
         <label htmlFor="product-description" className="text-sm font-medium text-ink">
           Description
@@ -148,7 +203,9 @@ export function ProductForm({
           onChange={(event) => setField('description', event.target.value)}
           aria-invalid={errors.description ? true : undefined}
           aria-describedby={errors.description ? 'product-description-error' : undefined}
-          className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className={`w-full rounded-xl border bg-surface px-3 py-2 text-sm text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+            errors.description ? 'border-danger' : 'border-line'
+          }`}
         />
         {errors.description ? (
           <p id="product-description-error" role="alert" className="text-xs text-danger">
@@ -204,8 +261,8 @@ export function ProductForm({
           error={errors.compareAtTaka}
           hint={
             compareAt !== null
-              ? `Shows as the struck-through original (${formatPoisha(compareAt)}). Leave empty for no sale.`
-              : 'Original price before a sale. Leave empty for no sale.'
+              ? `Shows as the struck-through original (${formatPoisha(compareAt)}). Variants with their own price override use their own compare-at.`
+              : 'Original price before a sale. Applies to variants without a price override.'
           }
           onChange={(event) => setField('compareAtTaka', event.target.value)}
         />
@@ -217,17 +274,24 @@ export function ProductForm({
         </label>
         <select
           id="product-status"
-          disabled={submitting}
-          value={values.status}
+          disabled={submitting || !allowActiveStatus}
+          value={allowActiveStatus ? values.status : 'draft'}
           onChange={(event) => setField('status', event.target.value as ProductStatus)}
-          className="h-11 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:w-60"
+          className="h-11 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60 sm:w-60"
         >
-          {STATUS_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
+          {STATUS_OPTIONS.filter((option) => allowActiveStatus || option.value === 'draft').map(
+            (option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ),
+          )}
         </select>
+        <p className="text-xs text-muted">
+          {allowActiveStatus
+            ? 'Active products need at least one variant and one image before they can be published.'
+            : 'New products are saved as drafts. Add variants and images, then publish from the edit page.'}
+        </p>
       </div>
 
       <fieldset>
