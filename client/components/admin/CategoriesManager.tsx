@@ -188,6 +188,11 @@ export function CategoriesManager() {
         <div className="text-sm">
           <span className="font-medium text-ink">{category.name}</span>
           <span className="ml-2 text-xs text-muted">/{category.slug} · sort {category.sortOrder}</span>
+          {category.children.length > 0 ? (
+            <span className="ml-2 text-xs text-muted">
+              · {category.children.length} subcategor{category.children.length === 1 ? 'y' : 'ies'}
+            </span>
+          ) : null}
         </div>
         <div className="flex gap-1">
           <Button
@@ -201,7 +206,12 @@ export function CategoriesManager() {
           <Button
             variant="ghost"
             size="sm"
-            disabled={busy}
+            disabled={busy || category.children.length > 0}
+            title={
+              category.children.length > 0
+                ? 'Delete its subcategories first — a category with subcategories cannot be deleted.'
+                : undefined
+            }
             onClick={() =>
               setDeleteTarget({
                 id: category.id,
@@ -325,8 +335,8 @@ export function CategoriesManager() {
         message={
           deleteTarget
             ? deleteTarget.parent === null
-              ? `Delete “${deleteTarget.name}”? Categories with subcategories or products cannot be deleted (the server will explain why).`
-              : `Delete “${deleteTarget.name}”? Categories with products cannot be deleted (the server will explain why).`
+              ? `Delete “${deleteTarget.name}”? Categories that still contain subcategories or products cannot be deleted — move or delete those first.`
+              : `Delete “${deleteTarget.name}”? A category that still contains products cannot be deleted — move those products first.`
             : ''
         }
         confirmLabel="Delete category"

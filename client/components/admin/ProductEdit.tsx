@@ -146,10 +146,10 @@ export function ProductEdit({ productId }: { productId: string }) {
         const result = await adminApi.deleteProduct(productId);
         if (result?.archived) {
           await reload();
+          const orders = result.orders ?? 0;
           setNotice({
             tone: 'info',
-            message:
-              'This product is referenced by existing orders, so it was archived instead of deleted. It no longer appears on the storefront.',
+            message: `This product appears in ${orders} order${orders === 1 ? '' : 's'}, so it was archived instead of deleted. It stays in the products list with status “archived” (order history stays intact) and is hidden from the storefront.`,
           });
         } else {
           // 204 No Content = hard delete succeeded (no response body to read).

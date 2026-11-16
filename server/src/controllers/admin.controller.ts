@@ -61,8 +61,9 @@ export const deleteProductHandler: RequestHandler = async (req, res) => {
     res.status(204).end();
     return;
   }
-  // Referenced by orders: archived instead of deleted.
-  res.status(200).json({ product: result.product, archived: true });
+  // Referenced by orders: archived instead of deleted (the reason is included so
+  // the admin UI can explain why the row is still in the list).
+  res.status(200).json({ product: result.product, archived: true, orders: result.orderCount ?? 0 });
 };
 
 export const createVariantHandler: RequestHandler = async (req, res) => {

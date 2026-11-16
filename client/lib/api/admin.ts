@@ -64,7 +64,7 @@ export const adminApi = {
     apiFetch<{ product: AdminProduct }>(`/admin/products/${id}`, { method: 'PATCH', body: payload }),
   deleteProduct: (id: string) =>
     // 204 (hard delete) resolves to `undefined`; the archive case returns a body.
-    apiFetch<{ product?: AdminProduct; archived?: boolean } | undefined>(
+    apiFetch<{ product?: AdminProduct; archived?: boolean; orders?: number } | undefined>(
       `/admin/products/${id}`,
       {
         method: 'DELETE',

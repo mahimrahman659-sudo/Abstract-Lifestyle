@@ -68,12 +68,12 @@ Order JSON: `{ id, orderNumber, checkoutId, status, paymentMethod, paymentStatus
 |---|---|---|
 | POST /admin/categories | Category fields | 201 `{ category }` — slug generated from name (unique) |
 | PATCH /admin/categories/:id | partial | 200 `{ category }` |
-| DELETE /admin/categories/:id | — | 204 (409 if it has subcategories or products) |
+| DELETE /admin/categories/:id | — | 204; 409 when it still contains subcategories/products — the message includes the counts and the next step ("move them … or delete them first") |
 | GET /admin/products | `?search&status&page&limit` | 200 list envelope (all statuses; `status` = draft \| active \| archived) |
 | GET /admin/products/:id | — | 200 `{ product, variants[] }` (any status — for editing) |
 | POST /admin/products | `{ name, slug?, description, category, basePrice, images[{ url, publicId }], status }` | 201 `{ product }` — `slug` defaults to the slugified name (unique); only leaf categories are accepted; new products must be `draft` (400 if `active`) |
 | PATCH /admin/products/:id | partial | 200 `{ product }` — `slug` changes only when sent explicitly (renaming never breaks links); switching to `active` requires ≥ 1 variant and ≥ 1 image (400 otherwise) |
-| DELETE /admin/products/:id | — | 204 hard delete; **200 `{ product, archived: true }` when referenced by orders** (archived, not deleted) |
+| DELETE /admin/products/:id | — | 204 hard delete (variants are removed with it); **200 `{ product, archived: true, orders: N }` when referenced by orders** (archived, not deleted) |
 | POST /admin/products/:id/variants | `{ sku, size?, color?, price?, compareAtPrice?, stock, lowStockThreshold?, images? }` | 201 `{ variant }` (409 on duplicate SKU or duplicate size/color; `size` normalized — apparel upper-cased, blank → `null`; `color` title-cased) |
 | POST /admin/products/:id/variants/bulk | `{ skuPrefix, color?, price?, compareAtPrice?, lowStockThreshold?, items: [{ size, stock }], images? }` | 201 `{ variants[] }` — one variant per size with SKU `PREFIX-SIZE`; all-or-nothing (rolled back on failure) |
 | PATCH /admin/variants/:id | partial, plus optional `expectedStock` | 200 `{ variant }` — stock edits are compare-and-set on `expectedStock` (409 when an order changed the stock meanwhile) |
