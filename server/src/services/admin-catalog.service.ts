@@ -260,17 +260,22 @@ export const deleteCategory = async (categoryId: string): Promise<void> => {
     ProductModel.countDocuments({ category: category._id }).exec(),
   ]);
   if (childCount > 0 || productCount > 0) {
-    // Actionable message: the admin must know what blocks the delete and how
-    // many rows are involved, otherwise the row just "stays there".
-    const blockers = [
-      childCount > 0 ? `${childCount} subcategor${childCount === 1 ? 'y' : 'ies'}` : null,
-      productCount > 0 ? `${productCount} product${productCount === 1 ? '' : 's'}` : null,
-    ].filter((part): part is string => part !== null);
-    throw new AppError(
-      409,
-      'CONFLICT',
-      `This category still contains ${blockers.join(' and ')} — move them to another category or delete them first.`,
-    );
+    // Actionable, correctly pluralised message: the admin must know exactly what
+    // blocks the delete and how many rows are involved, otherwise the row just
+    // "stays there".
+    const count = (value: number, one: string, many: string): string =>
+      `${value} ${value === 1 ? one : many}`;
+    const children = count(childCount, 'subcategory', 'subcategories');
+    const products = count(productCount, 'product', 'products');
+
+    const message =
+      childCount > 0 && productCount > 0
+        ? `This category still has ${children} and ${products}. Delete the subcategories and move or delete the products first.`
+        : childCount > 0
+          ? `This category still has ${children}. Delete ${childCount === 1 ? 'it' : 'them'} first.`
+          : `This category still has ${products}. Move ${productCount === 1 ? 'it' : 'them'} to another category or delete ${productCount === 1 ? 'it' : 'them'} first.`;
+
+    throw new AppError(409, 'CONFLICT', message);
   }
 
   await CategoryModel.deleteOne({ _id: category._id }).exec();
