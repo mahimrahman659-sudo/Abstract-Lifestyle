@@ -23,7 +23,7 @@ export function Footer() {
       <div className="mx-auto grid max-w-[1280px] grid-cols-2 gap-x-6 gap-y-4 px-4 pb-6 pt-6 sm:grid-cols-3 md:gap-10 md:px-10 md:pb-10 md:pt-10 lg:grid-cols-6">
         {/* Brand block */}
         <div className="col-span-2 sm:col-span-1">
-          <Link href="/" className={`inline-flex items-center gap-2 ${focusClass}`}>
+          <Link href="/" className={`inline-flex min-h-11 items-center gap-2 ${focusClass}`}>
             <span className="flex size-7 items-center justify-center rounded-lg bg-brand text-white">
               <BagIcon className="size-4" />
             </span>
@@ -40,7 +40,7 @@ export function Footer() {
                   <a
                     href={social.href}
                     aria-label={social.label}
-                    className={`flex size-9 items-center justify-center rounded-full border border-line bg-surface text-muted transition-colors hover:text-ink ${focusClass}`}
+                    className={`flex size-11 items-center justify-center rounded-full border border-line bg-surface text-muted transition-colors hover:text-ink md:size-9 ${focusClass}`}
                   >
                     <Icon className="size-4" />
                   </a>
@@ -56,7 +56,7 @@ export function Footer() {
         {site.footer.columns.map((column) => (
           <nav key={column.title} aria-label={column.title}>
             <h2 className="text-[13px] font-semibold text-ink">{column.title}</h2>
-            <ul className="mt-1 space-y-0 md:mt-2 md:space-y-1">
+            <ul className="mt-1 md:mt-2 md:space-y-1">
               {column.links.map((link) => (
                 <li key={link.label}>
                   <Link
