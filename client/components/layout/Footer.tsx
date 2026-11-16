@@ -20,7 +20,7 @@ const focusClass =
 export function Footer() {
   return (
     <footer className="border-t border-line bg-tile">
-      <div className="mx-auto grid max-w-[1280px] grid-cols-2 gap-x-6 gap-y-7 px-4 pb-8 pt-8 sm:grid-cols-3 sm:gap-10 sm:px-10 sm:pb-10 sm:pt-10 lg:grid-cols-6">
+      <div className="mx-auto grid max-w-[1280px] grid-cols-2 gap-x-6 gap-y-4 px-4 pb-6 pt-6 sm:grid-cols-3 md:gap-10 md:px-10 md:pb-10 md:pt-10 lg:grid-cols-6">
         {/* Brand block */}
         <div className="col-span-2 sm:col-span-1">
           <Link href="/" className={`inline-flex items-center gap-2 ${focusClass}`}>
@@ -32,7 +32,7 @@ export function Footer() {
           <p className="mt-2 max-w-xs text-[13px] leading-relaxed text-muted">
             {site.footer.description}
           </p>
-          <ul className="mt-3 flex items-center gap-2">
+          <ul className="mt-2 flex items-center gap-2 md:mt-3">
             {site.socials.map((social) => {
               const Icon = socialIcons[social.label];
               return (
@@ -50,16 +50,18 @@ export function Footer() {
           </ul>
         </div>
 
-        {/* Link columns — two per row on phones so the footer stays short. */}
+        {/* Link columns — two per row on phones so the footer stays short.
+            44px tall tap targets below 768px; the list gap is dropped there so
+            the extra height is absorbed and the footer height barely changes. */}
         {site.footer.columns.map((column) => (
           <nav key={column.title} aria-label={column.title}>
             <h2 className="text-[13px] font-semibold text-ink">{column.title}</h2>
-            <ul className="mt-2 space-y-1">
+            <ul className="mt-1 space-y-0 md:mt-2 md:space-y-1">
               {column.links.map((link) => (
                 <li key={link.label}>
                   <Link
                     href={link.href}
-                    className={`text-[13px] leading-6 text-muted hover:text-ink ${focusClass}`}
+                    className={`inline-flex min-h-11 items-center text-[13px] leading-6 text-muted hover:text-ink md:inline md:min-h-0 ${focusClass}`}
                   >
                     {link.label}
                   </Link>
@@ -77,7 +79,7 @@ export function Footer() {
       </div>
 
       <div className="border-t border-line">
-        <div className="mx-auto flex max-w-[1280px] items-center px-4 py-4 text-xs text-muted sm:px-10">
+        <div className="mx-auto flex max-w-[1280px] items-center px-4 py-3 text-xs text-muted md:px-10 md:py-4">
           <p>
             © <CopyrightYear /> {site.name}. All rights reserved.
           </p>
