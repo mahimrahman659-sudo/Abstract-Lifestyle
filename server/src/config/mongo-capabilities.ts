@@ -1,4 +1,4 @@
-import type { Db } from 'mongodb';
+import type { Connection } from 'mongoose';
 
 /**
  * What the connected MongoDB deployment can actually do.
@@ -60,7 +60,7 @@ export const classifyDeployment = (hello: HelloResult): DeploymentCapabilities =
 };
 
 /** Read-only topology inspection (`hello`). Never writes and never logs the URI. */
-export const readDeploymentCapabilities = async (db: Db): Promise<DeploymentCapabilities> => {
+export const readDeploymentCapabilities = async (db: NonNullable<Connection['db']>): Promise<DeploymentCapabilities> => {
   const hello = (await db.admin().command({ hello: 1 })) as HelloResult;
   return classifyDeployment(hello);
 };
