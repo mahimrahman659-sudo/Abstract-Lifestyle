@@ -6,7 +6,15 @@ export type ApiErrorCode =
   | 'NOT_FOUND'
   | 'CONFLICT'
   | 'RATE_LIMITED'
-  | 'SERVER_ERROR';
+  | 'SERVER_ERROR'
+  /** Checkout: one or more cart lines can no longer be ordered (details[]). */
+  | 'CART_NOT_ORDERABLE'
+  /** Checkout/cart: another checkout currently holds the cart claim. */
+  | 'CHECKOUT_IN_PROGRESS'
+  /** Checkout: the cart changed while the order was being placed. */
+  | 'CHECKOUT_CONFLICT'
+  /** Cancellation: the inventory could not be restored, so nothing changed. */
+  | 'STOCK_RESTORE_FAILED';
 
 export interface ApiErrorDetail {
   path: string;

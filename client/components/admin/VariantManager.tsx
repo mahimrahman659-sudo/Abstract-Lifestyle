@@ -379,9 +379,17 @@ export function VariantManager({
     setNotice(null);
     void (async () => {
       try {
-        await adminApi.deleteVariant(deleteTarget.id);
+        const result = await adminApi.deleteVariant(deleteTarget.id);
         await reload();
-        setNotice({ tone: 'success', message: `Variant ${deleteTarget.sku} deleted.` });
+        if (result?.archived) {
+          const orders = result.orders ?? 0;
+          setNotice({
+            tone: 'info',
+            message: `Variant ${deleteTarget.sku} is used by ${orders} order${orders === 1 ? '' : 's'}, so it was archived instead of deleted. It keeps its stock for cancellations and no longer appears on the storefront.`,
+          });
+        } else {
+          setNotice({ tone: 'success', message: `Variant ${deleteTarget.sku} deleted.` });
+        }
       } catch (error) {
         setNotice({
           tone: 'error',
@@ -393,6 +401,31 @@ export function VariantManager({
       } finally {
         setBusy(false);
         setDeleteTarget(null);
+      }
+    })();
+  };
+
+  const handleRestore = (variant: AdminVariant) => {
+    setBusy(true);
+    setNotice(null);
+    void (async () => {
+      try {
+        await adminApi.restoreVariant(variant.id);
+        await reload();
+        setNotice({
+          tone: 'success',
+          message: `Variant ${variant.sku} restored with its original SKU and stock.`,
+        });
+      } catch (error) {
+        setNotice({
+          tone: 'error',
+          message:
+            error instanceof ApiError
+              ? error.message
+              : 'Could not restore this variant. Reload and try again.',
+        });
+      } finally {
+        setBusy(false);
       }
     })();
   };
@@ -597,6 +630,14 @@ export function VariantManager({
                 <tr key={variant.id} className="border-b border-line/60 last:border-0">
                   <th scope="row" className="py-2 pr-3 font-medium text-ink">
                     {variant.sku}
+                    {variant.archivedAt ? (
+                      <span
+                        className="ml-2 rounded-full border border-line bg-tile px-2 py-0.5 text-[11px] font-medium text-muted"
+                        title={`Archived ${new Date(variant.archivedAt).toLocaleDateString('en-GB')} — kept for order history`}
+                      >
+                        Archived
+                      </span>
+                    ) : null}
                   </th>
                   <td className="py-2 pr-3 text-muted">
                     {[variant.size, variant.color].filter(Boolean).join(' / ') || '—'}
@@ -619,9 +660,25 @@ export function VariantManager({
                   </td>
                   <td className="py-2">
                     <div className="flex gap-2">
-                      <Button variant="ghost" size="sm" disabled={busy} onClick={() => startEdit(variant)}>
-                        Edit
-                      </Button>
+                      {variant.archivedAt ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => handleRestore(variant)}
+                        >
+                          Restore
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => startEdit(variant)}
+                        >
+                          Edit
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"

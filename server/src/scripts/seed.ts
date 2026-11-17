@@ -89,7 +89,7 @@ const seed = async (): Promise<void> => {
   // `--admin-only` seeds the admin user + category trees and skips the demo
   // products/variants (use this for production databases).
   const adminOnly = process.argv.includes('--admin-only');
-  await connectDB();
+  await connectDB({ requireTransactions: false });
 
   // 1. Admin user (credentials from env — see .env.example)
   const passwordHash = await bcrypt.hash(env.ADMIN_PASSWORD, 10);

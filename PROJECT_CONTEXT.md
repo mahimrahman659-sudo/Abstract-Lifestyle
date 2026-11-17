@@ -68,7 +68,7 @@ Business logic lives only in /server. Next.js never duplicates backend logic; it
 | Shipping cost | Flat fee from `SHIPPING_FEE` env (integer poisha, default 0); no carrier integration |
 | Size guide | Static clothing size-chart component (not DB-managed) |
 | Products without options | Every product has ≥ 1 variant; no-option lifestyle products get one "default" variant (size/color = null) |
-| Stock decrement | Guarded atomic `findOneAndUpdate` + compensating rollback; no transactions (works on standalone Mongo) |
+| Stock decrement | Guarded atomic `findOneAndUpdate` inside a MongoDB **transaction** (replica set required); the API refuses to start on a standalone deployment |
 | Order cancellation | Only from pending/processing; stock restored once (guarded by `stockRestored`) |
 | Auth transport | Browser talks to same-origin `/api/*` via Next.js rewrites → Express; `cors` kept locked to `CLIENT_ORIGIN` as a safety net for direct access |
 | Auth token storage | JWT in **httpOnly cookie** (`al_token`): `httpOnly: true`, `sameSite: 'lax'`, `secure: true` in production (off over local http), `maxAge` = JWT expiry (7d) |
@@ -99,7 +99,7 @@ Business logic lives only in /server. Next.js never duplicates backend logic; it
 - Rate limiting (`express-rate-limit`) on auth endpoints.
 
 ## 9. Risks
-- **Stock without transactions:** multi-item orders use compensating rollback on standalone Mongo (small race window). Upgrade path: replica set + transactions.
+- **Transactions require a replica set:** checkout, cancellation and variant/product deletion use multi-document transactions, so the deployment must be a replica set or sharded cluster (Atlas is). A standalone `mongod` is rejected at startup with a diagnostic. Order cancellation aborts if a referenced variant is missing instead of reporting a false success; variants referenced by orders are archived (kept for history) rather than deleted.
 - **Dependency policy:** approved list only (§7); anything else (e.g. helmet) asks first.
 - **Local disk uploads** don't scale to multi-instance deploys (swap to cloud storage later).
 - **Text search** won't match partial words (e.g. "t-shi" misses "T-shirt").

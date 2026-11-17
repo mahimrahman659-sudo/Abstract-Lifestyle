@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { AppError } from '../middleware/error-handler.js';
 import { COMPARE_AT_RULE_MESSAGE, PRICE_RULE_MESSAGE } from '../utils/pricing.js';
 import { CategoryModel } from '../models/category.model.js';
@@ -61,6 +61,8 @@ export interface VariantAdminDto {
   stock: number;
   lowStockThreshold: number;
   images: string[];
+  /** ISO timestamp when the variant was retired (kept for order history). */
+  archivedAt: string | null;
   inStock: boolean;
   lowStock: boolean;
 }
@@ -110,7 +112,7 @@ const variantStats = async (productIds: Types.ObjectId[]): Promise<Map<string, V
     count: number;
     totalStock: number;
   }>([
-    { $match: { product: { $in: productIds } } },
+    { $match: { product: { $in: productIds }, archivedAt: null } },
     { $group: { _id: '$product', count: { $sum: 1 }, totalStock: { $sum: '$stock' } } },
   ]).exec();
 
@@ -397,7 +399,10 @@ export const updateProduct = async (
 
   // Publishing requires a purchasable product: one variant and one image.
   if (input.status === 'active') {
-    const variantCount = await VariantModel.countDocuments({ product: product._id }).exec();
+    const variantCount = await VariantModel.countDocuments({
+      product: product._id,
+      archivedAt: null,
+    }).exec();
     if (variantCount === 0) {
       throw new AppError(
         400,
@@ -442,29 +447,75 @@ export const updateProduct = async (
 export const deleteProduct = async (
   productId: string,
 ): Promise<{ deleted: boolean; product?: ProductAdminDto; orderCount?: number }> => {
-  const product = await ProductModel.findById(productId).exec();
-  if (!product) {
-    throw new AppError(404, 'NOT_FOUND', 'Product not found');
+  const session = await mongoose.startSession();
+  const result: {
+    deleted?: boolean;
+    orderCount?: number;
+    imagePublicIds?: Array<string | null>;
+  } = {};
+
+  try {
+    await session.withTransaction(async () => {
+      const product = await ProductModel.findById(productId).session(session).exec();
+      if (!product) {
+        throw new AppError(404, 'NOT_FOUND', 'Product not found');
+      }
+
+      // Products referenced by orders are archived: order snapshots keep a valid
+      // product document and its variants (stock targets) stay intact.
+      const orderCount = await OrderModel.countDocuments({ 'items.product': product._id })
+        .session(session)
+        .exec();
+      if (orderCount > 0) {
+        product.status = 'archived';
+        await product.save({ session });
+        result.deleted = false;
+        result.orderCount = orderCount;
+        return;
+      }
+
+      // Remember the assets before the document is gone (Cloudinary cleanup runs
+      // after the commit, best-effort).
+      result.imagePublicIds = normalizeImages(product.images).map((asset) => asset.publicId);
+
+      // Cascade delete inside the same transaction: the variant writes conflict
+      // with a concurrent checkout, so a product that is being bought can never
+      // be deleted underneath it (the retry sees the order and archives instead).
+      await VariantModel.deleteMany({ product: product._id }, { session }).exec();
+      const removed = await ProductModel.deleteOne({ _id: product._id }, { session }).exec();
+      if (removed.deletedCount !== 1) {
+        throw new AppError(
+          409,
+          'CONFLICT',
+          'Product changed while it was being deleted. Please try again.',
+        );
+      }
+      result.deleted = true;
+      result.orderCount = 0;
+    });
+  } finally {
+    await session.endSession();
   }
 
-  // Prefer archiving over hard delete for products referenced by orders: the
-  // snapshot rows must keep pointing at a product document.
-  const orderCount = await OrderModel.countDocuments({ 'items.product': product._id }).exec();
-  if (orderCount > 0) {
-    product.status = 'archived';
-    await product.save();
+  if (result.deleted === undefined) {
+    throw new AppError(
+      409,
+      'CONFLICT',
+      'Product changed while it was being deleted. Please try again.',
+    );
+  }
+
+  if (!result.deleted) {
+    const archived = await ProductModel.findById(productId).exec();
     return {
       deleted: false,
-      product: toProductDto(product, await statsForProduct(product._id)),
-      orderCount,
+      product: archived ? toProductDto(archived, await statsForProduct(archived._id)) : undefined,
+      orderCount: result.orderCount ?? 0,
     };
   }
 
-  await VariantModel.deleteMany({ product: product._id }).exec();
-  await ProductModel.deleteOne({ _id: product._id }).exec();
-
-  // Hard delete succeeded → best-effort cleanup of the Cloudinary assets.
-  await destroyImageAssets(normalizeImages(product.images).map((asset) => asset.publicId));
+  // Hard delete committed → best-effort cleanup of the Cloudinary assets.
+  await destroyImageAssets(result.imagePublicIds ?? []);
 
   return { deleted: true };
 };
@@ -481,6 +532,7 @@ const toVariantDto = (
     stock: number;
     lowStockThreshold: number;
     images: string[];
+    archivedAt?: Date | null;
   },
   product: { _id: Types.ObjectId; name: string; slug: string },
 ): VariantAdminDto => ({
@@ -494,6 +546,7 @@ const toVariantDto = (
   stock: variant.stock,
   lowStockThreshold: variant.lowStockThreshold,
   images: variant.images,
+  archivedAt: variant.archivedAt ? variant.archivedAt.toISOString() : null,
   inStock: isInStock(variant.stock),
   lowStock: isLowStock(variant.stock, variant.lowStockThreshold),
 });
@@ -750,28 +803,200 @@ export const updateVariant = async (
   return toVariantDto(updated, product);
 };
 
-export const deleteVariant = async (variantId: string): Promise<void> => {
-  const variant = await VariantModel.findById(variantId).exec();
-  if (!variant) {
-    throw new AppError(404, 'NOT_FOUND', 'Variant not found');
+export interface VariantDeleteResult {
+  deleted: boolean;
+  archived: boolean;
+  orderCount: number;
+}
+
+/**
+ * Deletes a variant — or archives it when orders reference it.
+ *
+ * The decision happens inside a transaction that writes to the variant document
+ * first. A checkout decrementing the same variant therefore conflicts with this
+ * transaction, serialising the two: either the checkout commits first (the order
+ * is visible on retry and the variant is archived, keeping its id and stock for
+ * cancellations), or the deletion commits first and the checkout fails its
+ * guarded decrement. Stock can never be restored into a missing document.
+ */
+export const deleteVariant = async (variantId: string): Promise<VariantDeleteResult> => {
+  const session = await mongoose.startSession();
+  const result: { outcome: VariantDeleteResult | null } = { outcome: null };
+
+  try {
+    await session.withTransaction(async () => {
+      const variant = await VariantModel.findById(variantId).session(session).exec();
+      if (!variant) {
+        throw new AppError(404, 'NOT_FOUND', 'Variant not found');
+      }
+
+      // Write first: this is what makes a concurrent checkout conflict with us.
+      const marked = await VariantModel.updateOne(
+        { _id: variant._id },
+        { $set: { archivedAt: variant.archivedAt ?? new Date() } },
+        { session },
+      ).exec();
+      if (marked.matchedCount !== 1) {
+        throw new AppError(404, 'NOT_FOUND', 'Variant not found');
+      }
+
+      const orderCount = await OrderModel.countDocuments({ 'items.variant': variant._id })
+        .session(session)
+        .exec();
+
+      if (orderCount > 0) {
+        // Referenced by history: keep the document (and its stock) even when it is
+        // the product's last variant — the admin's intent is to stop selling it.
+        result.outcome = { deleted: false, archived: true, orderCount };
+        return;
+      }
+
+      // A hard delete must leave at least one purchasable variant behind.
+      const activeSiblings = await VariantModel.countDocuments({
+        product: variant.product,
+        _id: { $ne: variant._id },
+        archivedAt: null,
+      })
+        .session(session)
+        .exec();
+      if (activeSiblings === 0) {
+        throw new AppError(
+          409,
+          'CONFLICT',
+          'This is the product’s only purchasable variant — add another variant first (a product needs at least one).',
+        );
+      }
+
+      const removed = await VariantModel.deleteOne({ _id: variant._id }, { session }).exec();
+      if (removed.deletedCount !== 1) {
+        throw new AppError(
+          409,
+          'CONFLICT',
+          'Variant changed while it was being deleted. Please try again.',
+        );
+      }
+
+      result.outcome = { deleted: true, archived: false, orderCount: 0 };
+    });
+  } finally {
+    await session.endSession();
   }
 
-  const siblingCount = await VariantModel.countDocuments({ product: variant.product }).exec();
-  if (siblingCount <= 1) {
+  const outcome = result.outcome;
+  if (!outcome) {
     throw new AppError(
       409,
       'CONFLICT',
-      'This is the product’s only variant — add another variant first (a product needs at least one).',
+      'Variant changed while it was being deleted. Please try again.',
     );
   }
+  return outcome;
+};
 
-  await VariantModel.deleteOne({ _id: variant._id }).exec();
+/**
+ * Restores an archived variant: sets `archivedAt` back to null on the **existing**
+ * document, so its `_id`, SKU, stock and every historical order reference stay
+ * valid. Never creates a replacement document.
+ *
+ * Runs in a transaction that writes the variant, so it serialises with a
+ * concurrent checkout decrement or variant deletion exactly like the archive path.
+ */
+export const restoreVariant = async (variantId: string): Promise<VariantAdminDto> => {
+  const session = await mongoose.startSession();
+  const result: { variant: VariantAdminDto | null } = { variant: null };
+
+  try {
+    await session.withTransaction(async () => {
+      const variant = await VariantModel.findById(variantId).session(session).exec();
+      if (!variant) {
+        throw new AppError(404, 'NOT_FOUND', 'Variant not found');
+      }
+
+      // A variant without its product is not sellable, so it must not be revived.
+      const product = await ProductModel.findById(variant.product).session(session).exec();
+      if (!product) {
+        throw new AppError(
+          409,
+          'CONFLICT',
+          'The product that owns this variant no longer exists, so the variant cannot be restored.',
+        );
+      }
+
+      if (!variant.archivedAt) {
+        // Idempotent: a double click (or a stale admin list) is not an error.
+        result.variant = toVariantDto(variant, product);
+        return;
+      }
+
+      // Lock the parent against deletion without changing its publication status.
+      // A read alone could let a product disappear after our transaction snapshot.
+      const parent = await ProductModel.updateOne(
+        { _id: product._id },
+        { $inc: { __v: 1 } },
+        { session },
+      ).exec();
+      if (parent.matchedCount !== 1) {
+        throw new AppError(409, 'CONFLICT', 'The parent product changed. Reload and try again.');
+      }
+
+      // Defence in depth: the unique {product,size,color} index should make this
+      // impossible, but a legacy/out-of-band document must never break the index.
+      const conflict = await VariantModel.findOne({
+        _id: { $ne: variant._id },
+        $or: [
+          { sku: variant.sku },
+          { product: variant.product, size: variant.size, color: variant.color },
+        ],
+      })
+        .session(session)
+        .select('sku')
+        .exec();
+      if (conflict) {
+        throw new AppError(
+          409,
+          'CONFLICT',
+          `Cannot restore: variant ${conflict.sku} already uses this SKU or size and color.`,
+        );
+      }
+
+      // Restore only the archived state read by this transaction. On a write
+      // conflict MongoDB retries and rechecks the current variant and parent.
+      const restored = await VariantModel.findOneAndUpdate(
+        { _id: variant._id, archivedAt: variant.archivedAt },
+        { $set: { archivedAt: null } },
+        { returnDocument: 'after', session },
+      ).exec();
+      if (!restored) {
+        throw new AppError(
+          409,
+          'CONFLICT',
+          'The variant changed while it was being restored. Reload and try again.',
+        );
+      }
+
+      result.variant = toVariantDto(restored, product);
+    });
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      throw new AppError(409, 'CONFLICT', 'The SKU or size and color already exists. The variant was not restored.');
+    }
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+
+  const restored = result.variant;
+  if (!restored) {
+    throw new AppError(409, 'CONFLICT', 'The variant could not be restored. Please try again.');
+  }
+  return restored;
 };
 
 export const listVariants = async (
   query: AdminVariantQuery,
 ): Promise<AdminListResult<VariantAdminDto>> => {
-  const filter: Record<string, unknown> = {};
+  // Low-stock monitoring only looks at variants that can still be sold.
+  const filter: Record<string, unknown> = { archivedAt: null };
   if (query.lowStock === 'true') {
     filter.$expr = {
       $and: [{ $lte: ['$stock', '$lowStockThreshold'] }, { $gt: ['$stock', 0] }],

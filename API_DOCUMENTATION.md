@@ -35,7 +35,7 @@ Codes: `VALIDATION_ERROR` 400 · `UNAUTHORIZED` 401 · `FORBIDDEN` 403 · `NOT_F
 | GET /products/sitemap | — | 200 `{ items: [{ slug, updatedAt }] }` — active product slugs for the client sitemap (capped at 5000, no catalog payload) |
 | GET /products/:slug | — | 200 `{ product, variants: [Variant], sizeGuideKey: 'clothing' \| null }` |
 | GET /site-images | — | 200 `{ items: [{ key, image }] }` — storefront marketing slots (`hero`, `promo-1`, `promo-2`); `image` = `{ url, publicId }` or `null` when empty |
-| GET /health | — | 200 `{ ok: true }` |
+| GET /health | — | 200 `{ ok: true, transactions: true }` — `transactions` reflects the connected deployment's ability to run order transactions; the API refuses to start without it |
 
 ProductCard: `{ id, name, slug, category, image, priceFrom, priceTo, sizes[], colors[], inStock, compareAtPrice, discountPercent, createdAt }` (`compareAtPrice` = original price applying to `priceFrom`, `null` = no sale; `discountPercent` = server-computed floor %, always `0` unless the compare-at is strictly greater than the price; `createdAt` = ISO 8601 creation timestamp used for the "New" badge)
 Variant: `{ id, sku, size, color, price (effective), compareAtPrice, discountPercent, stock, inStock, lowStock, images[] }` (`lowStock` = stock ≤ lowStockThreshold and > 0). Compare-at rule: a variant **with its own price** uses only its own `compareAtPrice` (none = no sale); a variant **without its own price** uses the product `compareAtPrice`.
@@ -45,7 +45,7 @@ Product (detail): `{ id, name, slug, description, category, basePrice, compareAt
 | Endpoint | Request | Response |
 |---|---|---|
 | GET /cart | — | 200 `{ items: [{ variantId, product, name, sku, size, color, image, unitPrice, quantity, lineTotal, outOfStock, insufficientStock, unavailable }], subtotal, shippingFee, total }` |
-| POST /cart/items | `{ variantId, quantity (1–20) }` | 200 cart — existing line's quantity increases, capped at available stock |
+| POST /cart/items | `{ variantId, quantity (1–20) }` | 200 cart — existing line's quantity increases, capped at available stock; 409 `CHECKOUT_IN_PROGRESS` while another checkout holds the cart claim |
 | PATCH /cart/items/:variantId | `{ quantity (1–20) }` | 200 cart — capped at available stock |
 | DELETE /cart/items/:variantId | — | 200 cart (idempotent) |
 | DELETE /cart | — | 200 cart — removes all items |
@@ -56,7 +56,7 @@ Cart notes: prices/stock are always recomputed from the DB (`unitPrice = variant
 ## Orders (customer)
 | Endpoint | Request | Response |
 |---|---|---|
-| POST /orders | `{ checkoutId (UUID), shippingAddressId }` OR `{ checkoutId, shippingAddress: {...} }`, `paymentMethod: 'cod'` | 201 `{ order }`; 409 on insufficient stock / empty cart / in-progress checkout. Idempotent: replaying the same `checkoutId` returns the existing order |
+| POST /orders | `{ checkoutId (UUID), shippingAddressId }` OR `{ checkoutId, shippingAddress: {...} }`, `paymentMethod: 'cod'` | 201 `{ order }`; 409 `CART_NOT_ORDERABLE` (with per-line `details[]`) when any line is archived/unpublished/out of stock/priceless, 409 `CHECKOUT_IN_PROGRESS`, 409 `CHECKOUT_CONFLICT` when the cart changed mid-checkout. Idempotent: replaying the same `checkoutId` returns the existing order |
 | GET /orders | `?page&limit` | 200 list envelope (own orders, newest first) |
 | GET /orders/:id | — | 200 `{ order }` (own or admin) |
 | POST /orders/:id/cancel | — | 200 `{ order }` — customer cancel only from `pending`; restores stock exactly once (double-cancel safe); 409 otherwise |
@@ -79,7 +79,8 @@ Order JSON: `{ id, orderNumber, checkoutId, status, paymentMethod, paymentStatus
 | PATCH /admin/variants/:id | partial, plus optional `expectedStock` | 200 `{ variant }` — stock edits are compare-and-set on `expectedStock` (409 when an order changed the stock meanwhile) |
 
 Sale pricing (admin): `POST/PATCH /admin/products` accept `compareAtPrice` (integer poisha; `null` clears it) and `variants` endpoints accept `compareAtPrice` (only used when the variant has its own `price`). A variant WITH its own price uses only its own compare-at (none = no sale); a variant WITHOUT its own price uses the product compare-at. Setting a compare-at that is not greater than the price returns 400 - Compare-at price must be greater than the price. Raising a price to or above the stored compare-at returns 400 - Price must be lower than the compare-at price. Clear or raise the compare-at price first. Public DTOs always return `discountPercent: 0` when the compare-at is not strictly greater than the price, so stale values never render a discount.
-| DELETE /admin/variants/:id | — | 204 (409 if it is the product's last variant) |
+| DELETE /admin/variants/:id | — | 204 hard delete (409 if it is the product's last purchasable variant); **200 `{ archived: true, orders: N }` when N orders reference the variant** — the document and its stock are retained so cancellations can restore inventory |
+| PATCH /admin/variants/:id/restore | — | Admin only. 200 `{ variant }`; restores the existing document, preserving id/SKU/stock/history. Repeated restore succeeds. Parent status is unchanged; 409 on missing parent or uniqueness/concurrency conflict; 404 on missing variant. |
 | GET /admin/variants | `?lowStock=true&page&limit` | 200 list envelope (variant + product ref + `inStock`/`lowStock` flags) |
 | POST /admin/uploads | multipart `images[]` (jpeg/png/webp/heic/avif/bmp/tiff by content, ≤ 5 MB each, max 10) | 201 `{ assets: [{ url, publicId }] }` — content-verified (magic bytes) then uploaded to Cloudinary (`abstract-lifestyle/products`, cloud-generated public_id); HEIC/AVIF/BMP/TIFF are converted to JPEG on upload; `url` is the secure https URL |
 | POST /admin/uploads/destroy | `{ publicIds: string[] }` (1–20, own folder only) | 204 — deletes assets that were uploaded but never attached to a saved product (best-effort) |

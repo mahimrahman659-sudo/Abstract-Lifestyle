@@ -15,7 +15,11 @@
     "normalize-variants": "tsx src/scripts/normalize-variants.ts",
     "normalize-variants:prod": "node dist/scripts/normalize-variants.js",
     "type-check": "tsc --noEmit",
-    "lint": "eslint ."
+    "type-check:test": "tsc --noEmit -p tsconfig.test.json",
+    "lint": "eslint .",
+    "test": "node --import tsx --test test/mongo-capabilities.test.ts test/checkout-version-filter.test.ts test/db-connect.test.ts test/test-database-guard.test.ts test/topology-guard.test.ts test/order-integrity.test.ts",
+    "test:unit": "node --import tsx --test test/mongo-capabilities.test.ts test/checkout-version-filter.test.ts test/db-connect.test.ts test/test-database-guard.test.ts",
+    "test:db": "node --import tsx --test test/test-database-guard.test.ts test/topology-guard.test.ts test/order-integrity.test.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

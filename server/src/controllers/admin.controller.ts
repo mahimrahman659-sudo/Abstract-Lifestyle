@@ -7,6 +7,7 @@ import {
   deleteCategory,
   deleteProduct,
   deleteVariant,
+  restoreVariant,
   getProductAdmin,
   listProducts,
   listVariants,
@@ -87,8 +88,18 @@ export const updateVariantHandler: RequestHandler = async (req, res) => {
 
 export const deleteVariantHandler: RequestHandler = async (req, res) => {
   const { id } = adminIdParamsSchema.parse(req.params);
-  await deleteVariant(id);
+  const result = await deleteVariant(id);
+  if (result.archived) {
+    // Kept for order history: the stock target must survive cancellations.
+    res.status(200).json({ archived: true, orders: result.orderCount });
+    return;
+  }
   res.status(204).end();
+};
+
+export const restoreVariantHandler: RequestHandler = async (req, res) => {
+  const { id } = adminIdParamsSchema.parse(req.params);
+  res.status(200).json({ variant: await restoreVariant(id) });
 };
 
 export const listVariantsHandler: RequestHandler = async (req, res) => {
