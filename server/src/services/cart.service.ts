@@ -1,7 +1,13 @@
 import type { HydratedDocument, Types } from 'mongoose';
+import {
+  CART_MUTATION_ATTEMPTS,
+  CHECKOUT_CLAIM_STALE_MS,
+  CHECKOUT_IN_PROGRESS_MESSAGE,
+  cartVersionFilter,
+} from '../config/checkout.js';
 import { env } from '../config/env.js';
 import { AppError } from '../middleware/error-handler.js';
-import { CartModel, type CartDocument } from '../models/cart.model.js';
+import { CartModel, type CartDocument, type CartItem } from '../models/cart.model.js';
 import { ProductModel, type Product } from '../models/product.model.js';
 import { VariantModel, type Variant } from '../models/variant.model.js';
 import { mergeCartItemSchema, type MergeCartItemInput } from '../schemas/cart.schema.js';
@@ -35,25 +41,105 @@ export interface CartView {
 type VariantDoc = HydratedDocument<Variant>;
 type ProductDoc = HydratedDocument<Product>;
 
-const getOrCreateCart = async (userId: Types.ObjectId): Promise<CartDocument> => {
-  const cart = await CartModel.findOneAndUpdate(
-    { user: userId },
-    { $setOnInsert: { user: userId, items: [] } },
-    { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
-  ).exec();
+const isDuplicateKeyError = (error: unknown): boolean =>
+  typeof error === 'object' &&
+  error !== null &&
+  'code' in error &&
+  (error as { code?: unknown }).code === 11000;
 
-  if (!cart) {
-    throw new AppError(500, 'SERVER_ERROR', 'Failed to load cart');
+/** True while another request holds a non-stale checkout claim on the cart. */
+const hasActiveCheckout = (cart: { checkoutInProgress: Date | null }, now: number): boolean =>
+  cart.checkoutInProgress !== null &&
+  now - cart.checkoutInProgress.getTime() < CHECKOUT_CLAIM_STALE_MS;
+
+const getOrCreateCart = async (userId: Types.ObjectId): Promise<CartDocument> => {
+  const existing = await CartModel.findOne({ user: userId }).exec();
+  if (existing) {
+    return existing;
   }
-  return cart;
+
+  try {
+    const created = await CartModel.findOneAndUpdate(
+      { user: userId },
+      { $setOnInsert: { user: userId, items: [], version: 0 } },
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
+    ).exec();
+
+    if (!created) {
+      throw new AppError(500, 'SERVER_ERROR', 'Failed to load cart');
+    }
+    return created;
+  } catch (error) {
+    // Two first-time requests can race the unique user index. The loser simply
+    // re-reads the winner's cart — never a 500, never a second cart.
+    if (isDuplicateKeyError(error)) {
+      const raced = await CartModel.findOne({ user: userId }).exec();
+      if (raced) {
+        return raced;
+      }
+    }
+    throw error;
+  }
 };
 
-/** Loads a variant + product, or null when unknown/inactive. */
+/**
+ * Applies a cart mutation through a compare-and-swap on `version`, and only
+ * while no checkout claim is active. This is what stops a cart write from being
+ * silently erased by checkout's final clear (or vice versa):
+ *
+ * - mutations are rejected with 409 while checkout holds a non-stale claim;
+ * - a concurrent mutation makes the CAS fail and the operation retries on the
+ *   freshly loaded cart instead of overwriting it;
+ * - checkout itself clears with the same CAS (see order.service).
+ */
+const mutateCart = async (
+  userId: Types.ObjectId,
+  mutate: (items: CartItem[]) => CartItem[],
+): Promise<CartDocument> => {
+  for (let attempt = 1; attempt <= CART_MUTATION_ATTEMPTS; attempt += 1) {
+    const cart = await getOrCreateCart(userId);
+    const now = Date.now();
+
+    if (hasActiveCheckout(cart, now)) {
+      throw new AppError(409, 'CHECKOUT_IN_PROGRESS', CHECKOUT_IN_PROGRESS_MESSAGE);
+    }
+
+    const nextItems = mutate(
+      cart.items.map((item) => ({ variant: item.variant, quantity: item.quantity })),
+    );
+    const staleCutoff = new Date(now - CHECKOUT_CLAIM_STALE_MS);
+
+    const updated = await CartModel.findOneAndUpdate(
+      {
+        _id: cart._id,
+        $and: [
+          cartVersionFilter(cart.version),
+          { $or: [{ checkoutInProgress: null }, { checkoutInProgress: { $lt: staleCutoff } }] },
+        ],
+      },
+      { $set: { items: nextItems }, $inc: { version: 1 } },
+      { returnDocument: 'after' },
+    ).exec();
+
+    if (updated) {
+      return updated;
+    }
+    // Lost the race (concurrent mutation or a claim appeared) → retry.
+  }
+
+  throw new AppError(
+    409,
+    'CONFLICT',
+    'Your cart changed in another request. Please try again.',
+  );
+};
+
+/** Loads a variant + product, or null when unknown/inactive/archived. */
 const findAvailableVariant = async (
   variantId: string,
 ): Promise<{ variant: NonNullable<VariantDoc>; product: NonNullable<ProductDoc> } | null> => {
   const variant = await VariantModel.findById(variantId).exec();
-  if (!variant) {
+  if (!variant || variant.archivedAt) {
     return null;
   }
   const product = await ProductModel.findById(variant.product).exec();
@@ -92,7 +178,7 @@ const buildCartView = async (cart: CartDocument): Promise<CartView> => {
     const color = variant?.color ?? null;
     const image = variant?.images[0] ?? firstImageUrl(product?.images) ?? null;
 
-    if (!variant || !product || product.status !== 'active') {
+    if (!variant || !product || product.status !== 'active' || variant.archivedAt) {
       return {
         variantId,
         product: variant ? variant.product.toString() : null,
@@ -154,19 +240,20 @@ export const addItem = async (
     throw new AppError(409, 'CONFLICT', 'Insufficient stock');
   }
 
-  const cart = await getOrCreateCart(userId);
-  const existing = cart.items.find((item) => item.variant.toString() === variantId);
-  const currentQuantity = existing ? existing.quantity : 0;
-  const targetQuantity = Math.min(currentQuantity + quantity, variant.stock);
+  const updated = await mutateCart(userId, (items) => {
+    const existing = items.find((item) => item.variant.toString() === variantId);
+    const currentQuantity = existing ? existing.quantity : 0;
+    // Stock is re-read above; the cap is enforced server-side, never the client.
+    const targetQuantity = Math.min(currentQuantity + quantity, variant.stock);
 
-  if (existing) {
-    existing.quantity = targetQuantity;
-  } else {
-    cart.items.push({ variant: variant._id, quantity: targetQuantity });
-  }
+    if (existing) {
+      existing.quantity = targetQuantity;
+      return items;
+    }
+    return [...items, { variant: variant._id, quantity: targetQuantity }];
+  });
 
-  await cart.save();
-  return buildCartView(cart);
+  return buildCartView(updated);
 };
 
 export const updateItem = async (
@@ -174,12 +261,6 @@ export const updateItem = async (
   variantId: string,
   quantity: number,
 ): Promise<CartView> => {
-  const cart = await getOrCreateCart(userId);
-  const existing = cart.items.find((item) => item.variant.toString() === variantId);
-  if (!existing) {
-    throw new AppError(404, 'NOT_FOUND', 'Item not in cart');
-  }
-
   const available = await findAvailableVariant(variantId);
   if (!available) {
     throw new AppError(409, 'CONFLICT', 'Item is no longer available');
@@ -189,23 +270,28 @@ export const updateItem = async (
     throw new AppError(409, 'CONFLICT', 'Insufficient stock');
   }
 
-  existing.quantity = Math.min(quantity, variant.stock);
-  await cart.save();
-  return buildCartView(cart);
+  const updated = await mutateCart(userId, (items) => {
+    const existing = items.find((item) => item.variant.toString() === variantId);
+    if (!existing) {
+      throw new AppError(404, 'NOT_FOUND', 'Item not in cart');
+    }
+    existing.quantity = Math.min(quantity, variant.stock);
+    return items;
+  });
+
+  return buildCartView(updated);
 };
 
 export const removeItem = async (userId: Types.ObjectId, variantId: string): Promise<CartView> => {
-  const cart = await getOrCreateCart(userId);
-  cart.items = cart.items.filter((item) => item.variant.toString() !== variantId);
-  await cart.save();
-  return buildCartView(cart);
+  const updated = await mutateCart(userId, (items) =>
+    items.filter((item) => item.variant.toString() !== variantId),
+  );
+  return buildCartView(updated);
 };
 
 export const clearCart = async (userId: Types.ObjectId): Promise<CartView> => {
-  const cart = await getOrCreateCart(userId);
-  cart.items = [];
-  await cart.save();
-  return buildCartView(cart);
+  const updated = await mutateCart(userId, () => []);
+  return buildCartView(updated);
 };
 
 /** Merges a guest (localStorage) cart. Invalid entries are skipped, valid ones are capped at stock. */
@@ -213,7 +299,7 @@ export const mergeGuestItems = async (
   userId: Types.ObjectId,
   rawItems: unknown[],
 ): Promise<CartView> => {
-  const cart = await getOrCreateCart(userId);
+  const additions: Array<{ variant: NonNullable<VariantDoc>; quantity: number }> = [];
 
   for (const raw of rawItems) {
     const parsed = mergeCartItemSchema.safeParse(raw);
@@ -226,20 +312,29 @@ export const mergeGuestItems = async (
     if (!available || available.variant.stock === 0) {
       continue;
     }
-    const { variant } = available;
-
-    const existing = cart.items.find((item) => item.variant.toString() === entry.variantId);
-    const currentQuantity = existing ? existing.quantity : 0;
-    const targetQuantity = Math.min(currentQuantity + entry.quantity, variant.stock);
-
-    if (existing) {
-      existing.quantity = targetQuantity;
-    } else {
-      cart.items.push({ variant: variant._id, quantity: targetQuantity });
-    }
+    additions.push({ variant: available.variant, quantity: entry.quantity });
   }
 
-  await cart.save();
-  return buildCartView(cart);
+  const updated = await mutateCart(userId, (items) => {
+    for (const addition of additions) {
+      const existing = items.find(
+        (item) => item.variant.toString() === addition.variant._id.toString(),
+      );
+      const currentQuantity = existing ? existing.quantity : 0;
+      const targetQuantity = Math.min(
+        currentQuantity + addition.quantity,
+        addition.variant.stock,
+      );
+
+      if (existing) {
+        existing.quantity = targetQuantity;
+      } else {
+        items.push({ variant: addition.variant._id, quantity: targetQuantity });
+      }
+    }
+    return items;
+  });
+
+  return buildCartView(updated);
 };
 

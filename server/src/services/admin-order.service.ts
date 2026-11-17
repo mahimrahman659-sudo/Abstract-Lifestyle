@@ -112,11 +112,20 @@ export const adminUpdateOrderStatus = async (
       // Status change + stock restore + flag commit together or not at all.
       if (target === 'cancelled') {
         for (const item of updated.items) {
-          await VariantModel.updateOne(
+          const restored = await VariantModel.updateOne(
             { _id: item.variant },
             { $inc: { stock: item.quantity } },
             { session },
           ).exec();
+          // A missing variant cannot be restocked: abort the transaction rather
+          // than leaving a cancelled order with unrestored inventory.
+          if (restored.matchedCount !== 1) {
+            throw new AppError(
+              409,
+              'STOCK_RESTORE_FAILED',
+              `Cannot restore stock for ${item.sku}: the variant no longer exists. The order was not cancelled.`,
+            );
+          }
         }
       }
 

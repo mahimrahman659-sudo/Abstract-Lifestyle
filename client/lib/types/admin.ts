@@ -53,6 +53,8 @@ export interface AdminVariant {
   stock: number;
   lowStockThreshold: number;
   images: string[];
+  /** Set when the variant is retired (kept for order history, never sold). */
+  archivedAt: string | null;
   inStock: boolean;
   lowStock: boolean;
 }

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "type-check": "next typegen && tsc --noEmit"
+    "type-check": "next typegen && tsc --noEmit",
+    "test": "node --test lib/__tests__/site-url.test.ts"
   },
   "dependencies": {
     "next": "16.4.5",

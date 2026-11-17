@@ -85,7 +85,13 @@ export const adminApi = {
   updateVariant: (id: string, payload: Partial<VariantPayload>) =>
     apiFetch<{ variant: AdminVariant }>(`/admin/variants/${id}`, { method: 'PATCH', body: payload }),
   deleteVariant: (id: string) =>
-    apiFetch<void>(`/admin/variants/${id}`, { method: 'DELETE' }),
+    // 204 = hard delete; 200 = archived because orders reference it.
+    apiFetch<{ archived?: boolean; orders?: number } | undefined>(`/admin/variants/${id}`, {
+      method: 'DELETE',
+    }),
+  /** Revives an archived variant (same document, same id, same SKU/stock). */
+  restoreVariant: (id: string) =>
+    apiFetch<{ variant: AdminVariant }>(`/admin/variants/${id}/restore`, { method: 'PATCH' }),
   listLowStockVariants: (limit = 10) =>
     apiFetch<ListEnvelope<AdminVariant>>(`/admin/variants?lowStock=true&page=1&limit=${limit}`),
 

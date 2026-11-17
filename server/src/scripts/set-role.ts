@@ -64,7 +64,7 @@ const main = async (): Promise<void> => {
 
   const { email, role } = args;
 
-  await connectDB();
+  await connectDB({ requireTransactions: false });
   try {
     const user = await UserModel.findOne({ email }).select('email role').exec();
     if (!user) {

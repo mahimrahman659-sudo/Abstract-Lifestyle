@@ -30,7 +30,7 @@ each section before exposing the store to real customers.
 | Variable | Production requirement |
 |---|---|
 | `API_URL` | Internal/public origin the Next.js server uses to reach the API (e.g. `http://127.0.0.1:4000` on one host) |
-| `NEXT_PUBLIC_SITE_URL` | Public storefront origin (used by metadata, `robots.txt`, `sitemap.xml`) |
+| `NEXT_PUBLIC_SITE_URL` | Public storefront origin, used by metadata, canonical/OpenGraph URLs, `robots.txt` and `sitemap.xml`. **Required for production builds and local `next start`**, with an absolute `https` origin that is not a loopback host (e.g. `https://abstract-lifestyle.vercel.app`). Vercel preview builds enforce the same validation; when unset they require a valid HTTPS `VERCEL_URL` instead. Normal development allows localhost. |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google Identity Services client id (public by design — it configures the hosted Google button) |
 
 ### Vercel (client)
@@ -54,6 +54,19 @@ New Web Service → connect the repo, then:
 The `--include=dev` flag is required: `NODE_ENV=production` (set as a service env var) makes a plain `npm install` skip devDependencies, and the build needs `typescript` + `@types/node` (`tsc` fails with `TS2688: Cannot find type definition file for 'node'` otherwise). The repo does not commit `package-lock.json`, so Render resolves dependencies fresh on every deploy.
 
 Set the **server** env table above (Production) in the Render dashboard; `TRUST_PROXY=1` is mandatory (Render proxies all traffic) and `PORT` is injected by Render — do not set it. Allow Render's outbound IPs in MongoDB Atlas Network Access. After the first deploy, run the seed once (`npm run seed:prod -- --admin-only`, or locally against the prod `MONGODB_URI`) unless the database is already seeded. Finally set `API_URL` in Vercel to the Render service URL (`https://<name>.onrender.com`) and redeploy the Vercel project; set `CLIENT_ORIGIN` on Render to the Vercel origin.
+
+### Local database (replica set required)
+
+Order checkout, cancellation and admin variant/product deletion use multi-document transactions. The API **refuses to start** against a standalone `mongod` and prints the fix. Run a single-node replica set locally:
+
+```bash
+mongod --replSet rs0 --dbpath ./data --port 27017
+mongosh --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
+```
+
+Then use `MONGODB_URI=mongodb://127.0.0.1:27017/abstract_lifestyle?replicaSet=rs0&directConnection=true` (see `server/.env.example`). Managed MongoDB (Atlas, Render, etc.) already runs a replica set. `GET /api/health` reports `{ ok, transactions }` so a wrong topology is visible.
+
+Integration tests need a **disposable** replica set; see `server/test/README.md`. Never point them at production.
 
 - [ ] Every variable above is set from the host's secret manager — never committed to the repo
 - [ ] `server/.env.example` and `client/.env.example` list every variable used in code

@@ -182,6 +182,19 @@ export const listProducts = async (query: ProductListQuery): Promise<ProductList
       },
     },
     {
+      // Archived variants are kept for order history only — never priced,
+      // counted or shown on the storefront.
+      $addFields: {
+        variantDocs: {
+          $filter: {
+            input: '$variantDocs',
+            as: 'variant',
+            cond: { $eq: [{ $ifNull: ['$$variant.archivedAt', null] }, null] },
+          },
+        },
+      },
+    },
+    {
       $addFields: {
         effectivePrices: {
           $map: {
@@ -369,7 +382,7 @@ export const getProductBySlug = async (slug: string): Promise<ProductDetail> => 
   }
 
   const [variants, category, sizeGuideKey] = await Promise.all([
-    VariantModel.find({ product: product._id }).sort({ size: 1, color: 1 }).exec(),
+    VariantModel.find({ product: product._id, archivedAt: null }).sort({ size: 1, color: 1 }).exec(),
     CategoryModel.findById(product.category).exec(),
     resolveSizeGuideKey(product.category),
   ]);

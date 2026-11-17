@@ -18,6 +18,7 @@ import {
   getProductHandler,
   listProductsHandler,
   listVariantsHandler,
+  restoreVariantHandler,
   updateCategoryHandler,
   updateProductHandler,
   updateVariantHandler,
@@ -66,6 +67,7 @@ adminRouter.post(
 );
 adminRouter.get('/variants', listVariantsHandler);
 adminRouter.patch('/variants/:id', validateBody(updateVariantSchema), updateVariantHandler);
+adminRouter.patch('/variants/:id/restore', restoreVariantHandler);
 adminRouter.delete('/variants/:id', deleteVariantHandler);
 
 // Uploads

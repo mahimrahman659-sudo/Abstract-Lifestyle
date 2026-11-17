@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import type { RequestHandler } from 'express';
+import { getDeploymentCapabilities } from '../config/db.js';
 
 /** True only when the default connection is open AND MongoDB answers a ping. */
 const isDatabaseReady = async (): Promise<boolean> => {
@@ -15,7 +16,11 @@ const isDatabaseReady = async (): Promise<boolean> => {
 };
 
 export const getHealth: RequestHandler = async (_req, res) => {
-  const ok = await isDatabaseReady();
-  // Status only — never expose error details.
-  res.status(ok ? 200 : 503).json({ ok });
+  const databaseReady = await isDatabaseReady();
+  // Readiness includes the transaction capability: checkout/cancel cannot work
+  // without it, and the API refuses to start when it is missing.
+  const transactions = databaseReady && (getDeploymentCapabilities()?.transactions ?? false);
+  const ok = databaseReady && transactions;
+  // Status only — never expose error details or connection information.
+  res.status(ok ? 200 : 503).json({ ok, transactions });
 };

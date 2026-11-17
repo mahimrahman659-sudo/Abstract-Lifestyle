@@ -1,4 +1,5 @@
 import mongoose, { type ClientSession, type Types } from 'mongoose';
+import { CHECKOUT_CLAIM_STALE_MS, cartVersionFilter } from '../config/checkout.js';
 import { env } from '../config/env.js';
 import { AppError } from '../middleware/error-handler.js';
 import { CartModel } from '../models/cart.model.js';
@@ -51,9 +52,6 @@ export interface OrderListResult {
 }
 
 const ORDER_NUMBER_ATTEMPTS = 3;
-
-/** A checkout claim older than this is considered stale (crashed request) and can be re-claimed. */
-const CHECKOUT_CLAIM_STALE_MS = 60_000;
 
 const isDuplicateKeyError = (error: unknown): boolean =>
   typeof error === 'object' &&
@@ -110,20 +108,34 @@ const resolveShippingAddress = (
   return { fullName, phone, line1, line2, city, state, postalCode, country };
 };
 
+interface CartLineIssue {
+  path: string;
+  message: string;
+}
+
+/**
+ * Rebuilds order lines from the database and rejects anything that is not
+ * genuinely orderable. Runs once before the checkout claim (fast, actionable
+ * feedback) and again inside the transaction (authoritative).
+ *
+ * Checks per line: positive quantity, variant exists and is not archived,
+ * product exists and is active, price is a positive integer in poisha, and the
+ * requested quantity is within stock. All issues are returned together so the
+ * shopper can fix the cart in one pass.
+ */
 const buildOrderItems = async (
   cartItems: Array<{ variant: Types.ObjectId; quantity: number }>,
-  session: ClientSession,
+  session?: ClientSession,
 ): Promise<OrderItem[]> => {
-  const variants = await VariantModel.find({
+  const variantQuery = VariantModel.find({
     _id: { $in: cartItems.map((item) => item.variant) },
-  })
-    .session(session)
-    .exec();
-  const products = await ProductModel.find({
+  });
+  const variants = await (session ? variantQuery.session(session) : variantQuery).exec();
+
+  const productQuery = ProductModel.find({
     _id: { $in: variants.map((variant) => variant.product) },
-  })
-    .session(session)
-    .exec();
+  });
+  const products = await (session ? productQuery.session(session) : productQuery).exec();
 
   const variantById = new Map<string, (typeof variants)[number]>();
   for (const variant of variants) {
@@ -134,20 +146,52 @@ const buildOrderItems = async (
     productById.set(product._id.toString(), product);
   }
 
-  return cartItems.map((cartItem) => {
-    const variant = variantById.get(cartItem.variant.toString());
-    const product = variant ? productById.get(variant.product.toString()) : undefined;
+  const issues: CartLineIssue[] = [];
+  const items: OrderItem[] = [];
 
-    if (!variant || !product || product.status !== 'active') {
-      throw new AppError(
-        409,
-        'CONFLICT',
-        `Item no longer available: ${variant?.sku ?? 'unknown'}`,
-      );
+  for (const cartItem of cartItems) {
+    const variant = variantById.get(cartItem.variant.toString());
+    const label = variant?.sku ?? 'Unknown item';
+
+    if (!Number.isInteger(cartItem.quantity) || cartItem.quantity < 1) {
+      issues.push({ path: 'items', message: `${label}: quantity is not valid` });
+      continue;
+    }
+    if (!variant) {
+      issues.push({ path: 'items', message: `${label}: this item is no longer available` });
+      continue;
+    }
+    if (variant.archivedAt) {
+      issues.push({ path: 'items', message: `${variant.sku}: this item is no longer sold` });
+      continue;
+    }
+
+    const product = productById.get(variant.product.toString());
+    if (!product || product.status !== 'active') {
+      issues.push({
+        path: 'items',
+        message: `${variant.sku}: this product is not available right now`,
+      });
+      continue;
     }
 
     const unitPrice = variant.price ?? product.basePrice;
-    return {
+    if (!Number.isInteger(unitPrice) || unitPrice <= 0) {
+      issues.push({
+        path: 'items',
+        message: `${variant.sku}: the price is unavailable, so it cannot be ordered`,
+      });
+      continue;
+    }
+    if (variant.stock < cartItem.quantity) {
+      issues.push({
+        path: 'items',
+        message: `${variant.sku}: only ${variant.stock} left in stock`,
+      });
+      continue;
+    }
+
+    items.push({
       product: product._id,
       variant: variant._id,
       name: product.name,
@@ -158,8 +202,19 @@ const buildOrderItems = async (
       unitPrice,
       quantity: cartItem.quantity,
       lineTotal: unitPrice * cartItem.quantity,
-    };
-  });
+    });
+  }
+
+  if (issues.length > 0) {
+    throw new AppError(
+      409,
+      'CART_NOT_ORDERABLE',
+      'Some items in your cart can no longer be ordered. Review the cart and try again.',
+      issues,
+    );
+  }
+
+  return items;
 };
 
 export const createOrder = async (
@@ -185,6 +240,12 @@ export const createOrder = async (
     throw new AppError(409, 'CONFLICT', 'Cart is empty');
   }
 
+  // Fail fast with per-line reasons before claiming the cart; the same checks
+  // run again inside the transaction, where they are authoritative.
+  await buildOrderItems(
+    cart.items.map((item) => ({ variant: item.variant, quantity: item.quantity })),
+  );
+
   // Double-submit guard: atomically claim checkout for this cart. A claim that
   // is older than CHECKOUT_CLAIM_STALE_MS counts as stale (crashed request).
   const claimTime = new Date();
@@ -198,8 +259,10 @@ export const createOrder = async (
     { returnDocument: 'after' },
   ).exec();
   if (!claimed) {
-    throw new AppError(409, 'CONFLICT', 'Checkout already in progress');
+    throw new AppError(409, 'CHECKOUT_IN_PROGRESS', 'Checkout already in progress');
   }
+  // Version the claim was taken on — the final clear compare-and-swaps on it.
+  const claimedVersion = claimed.version;
 
   // Stock decrements, order creation and cart clearing happen in ONE
   // transaction: any failure aborts everything automatically, so no manual
@@ -211,8 +274,17 @@ export const createOrder = async (
     for (let attempt = 1; attempt <= ORDER_NUMBER_ATTEMPTS; attempt += 1) {
       try {
         await session.withTransaction(async () => {
-          // Re-validate and re-price everything from the database (inside the session).
-          const items = await buildOrderItems([...cart.items], session);
+          // Re-read the cart inside the transaction. The checkout claim blocks
+          // cart writes, and this read is the snapshot the order is built from —
+          // never the copy loaded before the claim.
+          const freshCart = await CartModel.findOne({ _id: cart._id }).session(session).exec();
+          if (!freshCart || freshCart.items.length === 0) {
+            throw new AppError(409, 'CONFLICT', 'Cart is empty');
+          }
+          const items = await buildOrderItems(
+            freshCart.items.map((item) => ({ variant: item.variant, quantity: item.quantity })),
+            session,
+          );
           const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
           const shippingFee = env.SHIPPING_FEE;
           const total = subtotal + shippingFee;
@@ -254,15 +326,24 @@ export const createOrder = async (
             throw new AppError(500, 'SERVER_ERROR', 'Failed to create order');
           }
 
-          // Clear the cart only if we still hold our claim (stale takeovers
-          // must not wipe a cart that already belongs to a newer checkout).
+          // Compare-and-swap the clear: the claim timestamp AND the cart version
+          // captured at claim time must still match, so a cart that changed
+          // underneath this checkout can never be erased by it.
           const cleared = await CartModel.updateOne(
-            { _id: cart._id, checkoutInProgress: claimTime },
-            { $set: { items: [] } },
+            {
+              _id: cart._id,
+              checkoutInProgress: claimTime,
+              ...cartVersionFilter(claimedVersion),
+            },
+            { $set: { items: [], checkoutInProgress: null }, $inc: { version: 1 } },
             { session },
           ).exec();
-          if (cleared.modifiedCount !== 1) {
-            throw new AppError(409, 'CONFLICT', 'Checkout already in progress');
+          if (cleared.matchedCount !== 1) {
+            throw new AppError(
+              409,
+              'CHECKOUT_CONFLICT',
+              'Your cart changed during checkout. Please review it and try again.',
+            );
           }
 
           result.created = order;
@@ -370,13 +451,22 @@ export const cancelOrder = async (user: UserDocument, orderId: string): Promise<
         throw new AppError(409, 'CONFLICT', 'Order cannot be cancelled');
       }
 
-      // Only the winner of the guarded transition above restores stock.
+      // Only the winner of the guarded transition above restores stock. A
+      // missing variant means inventory cannot be made whole, so the whole
+      // cancellation is aborted instead of reporting a false success.
       for (const item of updated.items) {
-        await VariantModel.updateOne(
+        const restored = await VariantModel.updateOne(
           { _id: item.variant },
           { $inc: { stock: item.quantity } },
           { session },
         ).exec();
+        if (restored.matchedCount !== 1) {
+          throw new AppError(
+            409,
+            'STOCK_RESTORE_FAILED',
+            `Cannot restore stock for ${item.sku}: the variant no longer exists. The order was not cancelled.`,
+          );
+        }
       }
 
       result.cancelled = toOrderDto(updated);

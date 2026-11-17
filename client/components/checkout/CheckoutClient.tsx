@@ -70,6 +70,7 @@ export function CheckoutClient() {
   const [formError, setFormError] = useState<string | null>(null);
   const [errorList, setErrorList] = useState<Array<{ field: keyof AddressFormValues; message: string }>>([]);
   const [conflict, setConflict] = useState<string | null>(null);
+  const [conflictDetails, setConflictDetails] = useState<string[]>([]);
   const [retryNote, setRetryNote] = useState<string | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -207,6 +208,7 @@ export function CheckoutClient() {
     setFormError(null);
     setErrorList([]);
     setConflict(null);
+    setConflictDetails([]);
     setRetryNote(null);
 
     if (!checkoutIdRef.current) {
@@ -254,17 +256,23 @@ export function CheckoutClient() {
       router.push(`/orders/${order.id}?placed=1`);
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
-        if (
+        if (error.code === 'CART_NOT_ORDERABLE') {
+          // The server re-validated every line; show exactly what must be fixed.
+          setConflict(error.message);
+          setConflictDetails(error.details.map((detail) => detail.message));
+        } else if (error.code === 'CHECKOUT_IN_PROGRESS' || error.code === 'CHECKOUT_CONFLICT') {
+          setRetryNote(
+            error.code === 'CHECKOUT_CONFLICT'
+              ? 'Your cart changed while the order was placed. Review it and try again.'
+              : 'Checkout is already in progress. Please wait a moment and try again.',
+          );
+        } else if (error.message.includes('Cart is empty')) {
+          setConflict('Your cart is empty.');
+        } else if (
           error.message.includes('Item no longer available') ||
           error.message.includes('Insufficient stock')
         ) {
           setConflict(error.message);
-        } else if (error.message.includes('Checkout already in progress')) {
-          setRetryNote(
-            'Checkout is already in progress. Please wait a moment and try again.',
-          );
-        } else if (error.message.includes('Cart is empty')) {
-          setConflict('Your cart is empty.');
         } else {
           setFormError(error.message);
         }
@@ -393,6 +401,13 @@ export function CheckoutClient() {
           {conflict ? (
             <Notice tone="error">
               <p>{conflict}</p>
+              {conflictDetails.length > 0 ? (
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
+                  {conflictDetails.map((detail) => (
+                    <li key={detail}>{detail}</li>
+                  ))}
+                </ul>
+              ) : null}
               <Button
                 variant="secondary"
                 size="sm"

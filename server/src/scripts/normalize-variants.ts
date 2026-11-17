@@ -38,7 +38,7 @@ const main = async (): Promise<void> => {
   console.log(`Target: ${target}`);
   console.log(apply ? 'Mode: APPLY (writes changes)' : 'Mode: dry-run (pass --apply to write)');
 
-  await connectDB();
+  await connectDB({ requireTransactions: false });
 
   const variants = await VariantModel.find().select('product sku size color').exec();
   type VariantDoc = (typeof variants)[number];

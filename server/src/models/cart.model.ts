@@ -10,6 +10,11 @@ export interface Cart {
   items: CartItem[];
   /** Timestamp of an active checkout claim; claims older than 60s are stale. */
   checkoutInProgress: Date | null;
+  /**
+   * Optimistic concurrency counter. Every cart mutation and the checkout clear
+   * compare-and-swap on it, so a write can never overwrite a newer state.
+   */
+  version: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,6 +36,8 @@ const cartSchema = new Schema<Cart>(
     // Guards against concurrent checkout (double submit) for the same cart.
     // A claim older than CHECKOUT_CLAIM_STALE_MS is treated as crashed/stale.
     checkoutInProgress: { type: Date, default: null },
+    // Bumped on every cart write; the checkout clear CASes on it.
+    version: { type: Number, default: 0, min: 0 },
   },
   { timestamps: true },
 );
