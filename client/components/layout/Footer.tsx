@@ -32,7 +32,7 @@ export function Footer() {
           <p className="mt-2 max-w-xs text-[13px] leading-relaxed text-muted">
             {site.footer.description}
           </p>
-          <ul className="mt-2 flex items-center gap-2 md:mt-3">
+          {site.socials.length > 0 ? <ul className="mt-2 flex items-center gap-2 md:mt-3">
             {site.socials.map((social) => {
               const Icon = socialIcons[social.label];
               return (
@@ -47,7 +47,7 @@ export function Footer() {
                 </li>
               );
             })}
-          </ul>
+          </ul> : null}
         </div>
 
         {/* Link columns — two per row on phones so the footer stays short.

@@ -4,7 +4,7 @@ import { UserModel, type UserDocument } from '../models/user.model.js';
 import type { LoginInput, RegisterInput } from '../schemas/user.schema.js';
 import { verifyGoogleCredential } from './google-auth.service.js';
 
-const BCRYPT_COST = 12;
+import { BCRYPT_COST } from '../config/password.js';
 
 // Compared against when the email does not exist, so login timing looks the same.
 const DUMMY_HASH = bcrypt.hashSync('timing-equalizer-placeholder', BCRYPT_COST);

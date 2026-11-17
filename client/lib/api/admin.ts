@@ -26,6 +26,7 @@ export interface AdminProductQuery {
 }
 
 export interface AdminOrderQuery {
+  search?: string;
   status?: OrderStatus;
   page?: number;
   limit?: number;

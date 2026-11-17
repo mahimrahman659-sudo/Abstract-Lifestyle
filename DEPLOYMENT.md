@@ -57,6 +57,20 @@ Set the **server** env table above (Production) in the Render dashboard; `TRUST_
 
 ### Local database (replica set required)
 
+Phase 1 seed safety: newly inserted demo products are drafts until legitimate images
+and variants satisfy the existing publishing rules. Repeat seeding preserves existing
+password hashes, product edits and inventory. All new password hashes use cost 12.
+Existing lower-cost admin hashes require verified-owner credential rotation through a
+controlled maintenance process: hash a new strong password with the shared cost 12,
+never rehash the old hash or print plaintext credentials. Rerunning the seed does not
+rotate credentials. Do not run demo seeding against production.
+
+Admin order search accepts a complete order number or a complete Bangladesh mobile
+number (local, +880 or 880 format), combined with status and pagination. Deploy the
+new `shippingAddress.phone/createdAt/_id` and `shippingAddress.phone/status/createdAt/_id`
+indexes through the normal database index rollout before relying on large-catalog
+search performance. No migration or production index write was performed here.
+
 Order checkout, cancellation and admin variant/product deletion use multi-document transactions. The API **refuses to start** against a standalone `mongod` and prints the fix. Run a single-node replica set locally:
 
 ```bash

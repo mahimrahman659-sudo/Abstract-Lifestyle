@@ -126,5 +126,7 @@ orderSchema.index({ orderNumber: 1 }, { unique: true });
 orderSchema.index({ checkoutId: 1 }, { unique: true, sparse: true });
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ status: 1, createdAt: -1 });
+orderSchema.index({ 'shippingAddress.phone': 1, createdAt: -1, _id: -1 });
+orderSchema.index({ 'shippingAddress.phone': 1, status: 1, createdAt: -1, _id: -1 });
 
 export const OrderModel = model<Order>('Order', orderSchema);

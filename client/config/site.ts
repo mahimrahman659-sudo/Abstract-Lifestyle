@@ -32,13 +32,13 @@ export const site = {
   name: 'Abstract Lifestyle',
   tagline: 'Clothing & everyday lifestyle',
   description:
-    'Clothing and everyday lifestyle essentials with Cash on Delivery, flat-fee delivery and easy exchange.',
+    'Clothing and everyday lifestyle essentials with Cash on Delivery and flat-fee delivery.',
 
   /** Announcement bar — exactly three short lines, one per icon. */
   announcement: [
     'Cash on Delivery on every order',
     'Flat delivery fee on every order',
-    'Easy exchange on every purchase',
+    'Manage your orders from your account',
   ],
 
   /** Hero copy (used by the home page). */
@@ -47,7 +47,7 @@ export const site = {
     titleLine1: 'Everyday style,',
     titleLine2: 'made simple.',
     subtitle:
-      'Clothing and lifestyle essentials with Cash on Delivery, flat-fee delivery and easy exchange.',
+      'Clothing and lifestyle essentials with Cash on Delivery and flat-fee delivery.',
     primaryCta: { label: 'Shop Now', href: '/products' },
     secondaryCta: { label: 'Explore Collections', href: '/products?sort=newest' },
   },
@@ -55,8 +55,8 @@ export const site = {
   /** Promo banner copy (home page). */
   promo: {
     pill: 'JUST ARRIVED',
-    title: 'New styles every week',
-    text: 'Fresh picks are added to the catalog on a regular basis — browse the latest arrivals.',
+    title: 'Explore the collection',
+    text: 'Browse clothing and everyday lifestyle products.',
     cta: { label: 'Shop New Arrivals', href: '/products?sort=newest' },
     badge: 'New in',
   },
@@ -64,7 +64,7 @@ export const site = {
   /** Trust strip + hero features — every claim here is true for this store. */
   trust: [
     { icon: 'cod', title: 'Cash on Delivery', text: 'Pay in cash when your order arrives.' },
-    { icon: 'exchange', title: 'Easy Exchange', text: 'Simple exchange on eligible items.' },
+    { icon: 'exchange', title: 'Order history', text: 'View orders from your account.' },
     { icon: 'shield', title: 'Secure Checkout', text: 'Your details stay protected.' },
     { icon: 'support', title: 'Support', text: 'We are happy to help.' },
   ] as TrustItem[],
@@ -89,7 +89,7 @@ export const site = {
     whatHappensNext: [
       'We call you on the phone number you gave us to confirm the order before dispatch.',
       'You pay cash to the delivery person when the order arrives.',
-      'You can cancel this order from this page while it is still pending.',
+      'You can cancel this order while it is pending or processing, before shipment.',
     ],
   },
 
@@ -119,7 +119,7 @@ export const site = {
   footer: {
     /** Two-line brand blurb. */
     description:
-      'Clothing and everyday lifestyle products, kept simple. Cash on Delivery, flat-fee delivery and easy exchange on every order.',
+      'Clothing and everyday lifestyle products, kept simple. Cash on Delivery and flat-fee delivery.',
     columns: [
       {
         title: 'Shop',
@@ -163,10 +163,10 @@ export const site = {
   productPage: {
     // OWNER: confirm — these statements must match the store's real policies before launch.
     shippingAndReturns:
-      'Cash on Delivery on every order. Flat-fee delivery nationwide. Easy exchange on eligible items.',
+      'Cash on Delivery. The delivery fee is shown at checkout.',
     trust: [
       { title: 'Cash on Delivery', text: 'Pay in cash when your order arrives.' },
-      { title: 'Easy Exchange', text: 'Simple exchange on eligible items.' },
+      { title: 'Order history', text: 'View orders from your account.' },
       { title: 'Secure Checkout', text: 'Your details stay protected.' },
     ],
     relatedTitle: 'You may also like',
@@ -174,15 +174,11 @@ export const site = {
   },
 
   // OWNER: confirm — replace '#' with the real profile URLs (or remove unused ones).
-  socials: [
-    { label: 'Facebook', href: '#' },
-    { label: 'Instagram', href: '#' },
-    { label: 'X', href: '#' },
-  ] as SocialLink[],
+  socials: [] as SocialLink[],
 
   // OWNER: confirm — real support email and hours before launch.
   contact: {
-    email: 'hello@example.com',
-    hours: 'Saturday–Thursday, 10:00–18:00',
+    email: '',
+    hours: '',
   },
 };

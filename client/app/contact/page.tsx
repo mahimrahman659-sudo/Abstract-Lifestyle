@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Notice } from "@/components/ui/Notice";
+import { site } from '@/config/site';
 
 export const metadata: Metadata = {
   title: "Contact",
@@ -10,17 +10,10 @@ export default function ContactPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-12">
       <h1 className="text-3xl font-semibold tracking-tight text-ink">Contact us</h1>
-      <Notice tone="info" className="mt-4">
-        Placeholder content — edit this page in <code>app/contact/page.tsx</code>.
-      </Notice>
       <div className="mt-8 space-y-4 text-sm leading-relaxed text-muted">
         <p>Questions about an order, shipping or a product? We are happy to help.</p>
-        <p>
-          Email: <span className="font-medium text-ink">hello@example.com</span> (placeholder)
-          <br />
-          Hours: Saturday–Thursday, 10:00–18:00 (placeholder)
-        </p>
-        <p>Replace this with your real support email, phone and hours.</p>
+        {site.contact.email ? <p>Email: <a href={`mailto:${site.contact.email}`}>{site.contact.email}</a></p> : <p>Online support contact details are not currently available.</p>}
+        {site.contact.hours ? <p>Hours: {site.contact.hours}</p> : null}
       </div>
     </div>
   );

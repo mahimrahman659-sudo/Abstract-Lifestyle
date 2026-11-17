@@ -25,6 +25,13 @@ import { addItem, clearCart, getCart, mergeGuestItems, removeItem, updateItem } 
 import { cancelOrder, createOrder } from '../src/services/order.service.js';
 import { AppError } from '../src/middleware/error-handler.js';
 import { CHECKOUT_CLAIM_STALE_MS } from '../src/config/checkout.js';
+import { addAddress, updateAddress, deleteAddress, updateProfile } from '../src/services/user.service.js';
+import { adminListOrders } from '../src/services/admin-order.service.js';
+import { adminOrderQuerySchema } from '../src/schemas/admin.schema.js';
+import { addressSchema, addressUpdateSchema } from '../src/schemas/user.schema.js';
+import { seedData } from '../src/scripts/seed.js';
+import bcrypt from 'bcryptjs';
+import { env } from '../src/config/env.js';
 
 let sequence = 0;
 const unique = (prefix: string): string => {
@@ -148,6 +155,125 @@ describe('Phase 0 — order integrity (A5, B1, B2, B3)', () => {
   });
 
   // ---- A5 -----------------------------------------------------------------
+  describe('Phase 1 business functionality', () => {
+    it('edits and explicitly clears all optional address values while omitted fields and order snapshots survive', async () => {
+      const fixture = await makeFixture();
+      const fields = ['label', 'line2', 'city', 'state', 'postalCode', 'country'] as const;
+      const input = addressSchema.parse({ fullName: 'Customer', phone: '01712345678', line1: 'Dhaka',
+        label: 'Home', line2: 'Flat 4', city: 'Dhaka', state: 'Dhaka', postalCode: '1200', country: 'Bangladesh' });
+      const address = await addAddress(fixture.user, input); assert.ok(address._id);
+      await addItem(fixture.user._id, fixture.variant.toString(), 1);
+      const order = await createOrder(fixture.user, { checkoutId: randomUUID(), paymentMethod: 'cod', shippingAddress: input });
+      const snapshot = JSON.stringify((await OrderModel.findById(order.id))?.shippingAddress);
+      await updateAddress(fixture.user, address._id.toString(), addressUpdateSchema.parse({ line1: 'New street' }));
+      let stored = (await UserModel.findById(fixture.user._id))?.addresses[0];
+      for (const field of fields) assert.equal(stored?.[field], input[field], 'omitted values are preserved');
+      const edits = Object.fromEntries(fields.map((field) => [field, `New ${field}`]));
+      await updateAddress(fixture.user, address._id.toString(), addressUpdateSchema.parse(edits));
+      stored = (await UserModel.findById(fixture.user._id))?.addresses[0];
+      for (const field of fields) assert.equal(stored?.[field], `New ${field}`);
+      const cleared = Object.fromEntries(fields.map((field) => [field, '   ']));
+      await updateAddress(fixture.user, address._id.toString(), addressUpdateSchema.parse(cleared));
+      stored = (await UserModel.findById(fixture.user._id))?.addresses[0];
+      for (const field of fields) assert.equal(stored?.[field], '', 'explicit clears persist in MongoDB');
+      assert.ok(stored?.isDefault);
+      assert.equal(JSON.stringify((await OrderModel.findById(order.id))?.shippingAddress), snapshot);
+      assert.throws(() => addressUpdateSchema.parse({ line1: '' }));
+      assert.throws(() => addressUpdateSchema.parse({ label: 'x'.repeat(31) }));
+    });
+    for (const status of ['pending', 'processing', 'shipped', 'cancelled'] as const) {
+      it(`customer cancellation from ${status}`, async () => {
+        const fixture = await makeFixture({ stock: 5 });
+        await addItem(fixture.user._id, fixture.variant.toString(), 1);
+        const order = await placeOrder(fixture.user);
+        if (status !== 'pending') await OrderModel.updateOne({ _id: order.id }, { $set: { status } });
+        if (status === 'pending' || status === 'processing') {
+          await deleteVariant(fixture.variant.toString());
+          await cancelOrder(fixture.user, order.id);
+          assert.equal(await stockOf(fixture.variant), 5);
+          await assert.rejects(cancelOrder(fixture.user, order.id));
+        } else {
+          await assert.rejects(cancelOrder(fixture.user, order.id), (error: unknown) => error instanceof AppError && error.statusCode === 409);
+          assert.equal(await stockOf(fixture.variant), 4);
+        }
+      });
+    }
+    it('serializes customer cancellation against shipment and administrative cancellation', async () => {
+      for (const target of ['shipped', 'cancelled'] as const) {
+        const fixture = await makeFixture({ stock: 5 });
+        await addItem(fixture.user._id, fixture.variant.toString(), 1);
+        const order = await placeOrder(fixture.user);
+        await OrderModel.updateOne({ _id: order.id }, { $set: { status: 'processing' } });
+        await Promise.allSettled([cancelOrder(fixture.user, order.id), adminUpdateOrderStatus(fixture.user, order.id, { status: target })]);
+        const stored = await OrderModel.findById(order.id);
+        assert.ok(stored);
+        assert.ok(stored.status === 'cancelled' || stored.status === 'shipped');
+        assert.equal(stored.stockRestored, stored.status === 'cancelled');
+        assert.equal(await stockOf(fixture.variant), stored.status === 'cancelled' ? 5 : 4);
+      }
+    });
+    it('serializes address/default changes, rejects foreign ids and preserves order snapshots', async () => {
+      const fixture = await makeFixture();
+      await addItem(fixture.user._id, fixture.variant.toString(), 1);
+      const order = await placeOrder(fixture.user);
+      const original = JSON.stringify((await OrderModel.findById(order.id))?.shippingAddress);
+      const input = addressSchema.parse({ fullName: 'Customer', phone: '+8801712345678', line1: 'Dhaka', isDefault: true });
+      const [first, second] = await Promise.all([addAddress(fixture.user, input), addAddress(fixture.user, input)]);
+      assert.ok(first._id && second._id);
+      await Promise.all([updateAddress(fixture.user, first._id.toString(), { isDefault: true }), updateAddress(fixture.user, second._id.toString(), { isDefault: true }), updateProfile(fixture.user, { name: 'New name' })]);
+      let stored = await UserModel.findById(fixture.user._id);
+      assert.equal(stored?.addresses.length, 2);
+      assert.equal(stored?.addresses.filter((a) => a.isDefault).length, 1);
+      assert.equal(stored?.name, 'New name');
+      const other = await makeFixture();
+      await assert.rejects(updateAddress(other.user, first._id.toString(), { line1: 'Wrong owner' }), (error: unknown) => error instanceof AppError && error.statusCode === 404);
+      const defaultId = stored?.addresses.find((a) => a.isDefault)?._id;
+      assert.ok(defaultId);
+      await deleteAddress(fixture.user, defaultId.toString());
+      stored = await UserModel.findById(fixture.user._id);
+      assert.equal(stored?.addresses.length, 1);
+      assert.equal(stored?.addresses[0]?.isDefault, true);
+      assert.equal(JSON.stringify((await OrderModel.findById(order.id))?.shippingAddress), original);
+    });
+    it('searches normalized phones and order numbers with status pagination and indexed plans', async () => {
+      const fixture = await makeFixture();
+      for (let i = 0; i < 3; i++) { await addItem(fixture.user._id, fixture.variant.toString(), 1); await placeOrder(fixture.user); }
+      const phone = '01700000000';
+      const page = await adminListOrders(adminOrderQuerySchema.parse({ search: '+8801700000000', status: 'pending', page: 2, limit: 1 }));
+      assert.equal(page.total, 3); assert.equal(page.items.length, 1); assert.equal(page.totalPages, 3);
+      const number = page.items[0]?.orderNumber;
+      assert.ok(number);
+      assert.equal((await adminListOrders(adminOrderQuerySchema.parse({ search: number.toLowerCase() }))).total, 1);
+      assert.equal((await adminListOrders(adminOrderQuerySchema.parse({ search: phone, status: 'shipped' }))).total, 0);
+      assert.throws(() => adminOrderQuerySchema.parse({ search: '.*' }));
+      const plan = await OrderModel.collection.find({ 'shippingAddress.phone': phone, status: 'pending' }).sort({ createdAt: -1, _id: -1 }).limit(1).explain('executionStats');
+      assert.match(JSON.stringify(plan.queryPlanner.winningPlan), /IXSCAN/);
+      assert.ok(plan.executionStats.totalDocsExamined <= 1);
+    });
+    it('seeds cost-12 credentials and draft demos without resetting repeated-seed stock or credentials', async () => {
+      await seedData();
+      const admin = await UserModel.findOne({ email: env.ADMIN_EMAIL });
+      assert.ok(admin?.passwordHash);
+      assert.equal(bcrypt.getRounds(admin.passwordHash), 12);
+      assert.equal(await bcrypt.compare(env.ADMIN_PASSWORD, admin.passwordHash), true);
+      assert.equal(await ProductModel.countDocuments({ status: 'active' }), 0);
+      assert.equal(await ProductModel.countDocuments({ status: 'draft' }), 4);
+      const demos = await ProductModel.find().sort({ _id: 1 });
+      const invalid = demos[0]; const legitimate = demos[1];
+      assert.ok(invalid && legitimate);
+      await ProductModel.updateOne({ _id: invalid._id }, { $set: { status: 'active' } });
+      await ProductModel.updateOne({ _id: legitimate._id }, { $set: { status: 'active', images: ['https://images.example.test/fixture.jpg'] } });
+      const variant = await VariantModel.findOne(); assert.ok(variant);
+      await VariantModel.updateOne({ _id: variant._id }, { $set: { stock: 2 } });
+      const counts = [await UserModel.countDocuments(), await ProductModel.countDocuments(), await VariantModel.countDocuments()];
+      await seedData();
+      assert.equal((await ProductModel.findById(invalid._id))?.status, 'draft');
+      assert.equal((await ProductModel.findById(legitimate._id))?.status, 'active');
+      assert.deepEqual([await UserModel.countDocuments(), await ProductModel.countDocuments(), await VariantModel.countDocuments()], counts);
+      assert.equal((await UserModel.findById(admin._id))?.passwordHash, admin.passwordHash);
+      assert.equal(await stockOf(variant._id), 2);
+    });
+  });
   describe('A5 — variant deletion vs. order history', () => {
     it('archives a variant referenced by an order and restores its stock on cancel', async () => {
       const fixture = await makeFixture({ stock: 10 });
@@ -883,6 +1009,30 @@ describe('Phase 0 — order integrity (A5, B1, B2, B3)', () => {
       assert.ok(body.error.details.length > 0);
       assert.equal(await OrderModel.countDocuments(), 0);
       assert.equal(await stockOf(fixture.variant), 10);
+    });
+    it('protects profile/address endpoints and admin search from unauthenticated or non-admin access', async () => {
+      const fixture = await makeFixture();
+      assert.equal((await request(null, '/users/me', 'PATCH', { name: 'New' })).status, 401);
+      assert.equal((await request(fixture.user, '/users/me', 'PATCH', { name: '' })).status, 400);
+      assert.equal((await request(fixture.user, '/users/me', 'PATCH', { name: 'New' })).status, 200);
+      assert.equal((await request(fixture.user, '/users/me/addresses', 'POST', { fullName: 'Customer', phone: 'invalid', line1: 'Dhaka' })).status, 400);
+      const created = await request(fixture.user, '/users/me/addresses', 'POST', { fullName: 'Customer', phone: '+8801712345678', line1: 'Dhaka', isDefault: true });
+      assert.equal(created.status, 201);
+      const address = (await created.json() as { address: { _id: string } }).address;
+      const other = await makeFixture();
+      assert.equal((await request(other.user, `/users/me/addresses/${address._id}`, 'PATCH', { line1: 'Wrong owner' })).status, 404);
+      assert.equal((await request(other.user, `/users/me/addresses/${address._id}`, 'DELETE')).status, 404);
+      assert.equal((await request(fixture.user, `/users/me/addresses/${address._id}`, 'PATCH', { line1: 'Updated' })).status, 200);
+      assert.equal((await request(fixture.user, `/users/me/addresses/${address._id}`, 'PATCH', { label: 'Home', line2: 'Flat 4', city: 'Dhaka', state: 'Dhaka', postalCode: '1200', country: 'Bangladesh' })).status, 200);
+      assert.equal((await request(fixture.user, `/users/me/addresses/${address._id}`, 'PATCH', { label: '', line2: '', city: '', state: '', postalCode: '', country: '' })).status, 200);
+      const clearedAddress = (await UserModel.findById(fixture.user._id))?.addresses.find((item) => item._id?.toString() === address._id);
+      for (const field of ['label', 'line2', 'city', 'state', 'postalCode', 'country'] as const) assert.equal(clearedAddress?.[field], '');
+      assert.equal((await request(fixture.user, `/users/me/addresses/${address._id}`, 'DELETE')).status, 204);
+      assert.equal((await request(null, '/admin/orders?search=01700000000', 'GET')).status, 401);
+      assert.equal((await request(fixture.user, '/admin/orders?search=01700000000', 'GET')).status, 403);
+      fixture.user.role = 'admin'; await fixture.user.save();
+      assert.equal((await request(fixture.user, '/admin/orders?search=.*', 'GET')).status, 400);
+      assert.equal((await request(fixture.user, '/admin/orders?search=01700000000', 'GET')).status, 200);
     });
 
     it('returns 409 CHECKOUT_IN_PROGRESS without changing stock', async () => {

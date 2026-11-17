@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { AccountEditor } from './AccountEditor';
 
 export function AccountPanel() {
   const { user } = useAuth();
@@ -23,7 +23,7 @@ export function AccountPanel() {
 
       <section aria-labelledby="profile-heading" className="rounded-2xl border border-line bg-surface p-5">
         <h2 id="profile-heading" className="text-base font-semibold text-ink">
-          Profile
+          Profile and delivery addresses
         </h2>
         <dl className="mt-3 space-y-2 text-sm">
           <div className="flex flex-wrap gap-2">
@@ -39,40 +39,7 @@ export function AccountPanel() {
             <dd className="text-ink capitalize">{user.role}</dd>
           </div>
         </dl>
-        <p className="mt-4 text-xs text-muted">
-          Profile editing and address management ship in a later release — your addresses added at
-          checkout are saved to this account.
-        </p>
-      </section>
-
-      <section aria-labelledby="addresses-heading" className="rounded-2xl border border-line bg-surface p-5">
-        <h2 id="addresses-heading" className="text-base font-semibold text-ink">
-          Saved addresses
-        </h2>
-        {user.addresses.length === 0 ? (
-          <div className="mt-3">
-            <EmptyState
-              title="No saved addresses yet"
-              description="Addresses you save during checkout will appear here."
-            />
-          </div>
-        ) : (
-          <ul className="mt-3 space-y-3 text-sm">
-            {user.addresses.map((address) => (
-              <li key={address._id} className="rounded-xl border border-line px-3 py-2">
-                <p className="font-medium text-ink">
-                  {address.label ? `${address.label} — ` : ''}
-                  {address.fullName}
-                </p>
-                <p className="text-muted">
-                  {address.line1}
-                  {address.line2 ? `, ${address.line2}` : ''}, {address.city}, {address.country}
-                  {address.isDefault ? ' · Default' : ''}
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
+        <AccountEditor />
       </section>
 
       <section aria-labelledby="shortcuts-heading" className="rounded-2xl border border-line bg-surface p-5">

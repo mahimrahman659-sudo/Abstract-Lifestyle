@@ -8,6 +8,8 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Pagination } from '@/components/ui/Pagination';
 import { Price } from '@/components/ui/Price';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
 import { adminApi } from '@/lib/api/admin';
 import { ApiError } from '@/lib/api/client';
 import type { ListEnvelope, OrderDto, OrderStatus } from '@/lib/types';
@@ -30,6 +32,8 @@ const formatDate = (iso: string): string =>
   });
 
 export function AdminOrders() {
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | OrderStatus>('');
   const [page, setPage] = useState(1);
   const [state, setState] = useState<ListState>({ status: 'loading' });
@@ -42,6 +46,7 @@ export function AdminOrders() {
       setState({ status: 'loading' });
       try {
         const data = await adminApi.listOrders({
+          search: search || undefined,
           status: statusFilter || undefined,
           page,
           limit: 10,
@@ -61,11 +66,18 @@ export function AdminOrders() {
     return () => {
       cancelled = true;
     };
-  }, [statusFilter, page, reloadKey]);
+  }, [statusFilter, page, reloadKey, search]);
 
   return (
     <div className="space-y-5">
       <h1 className="text-2xl font-semibold tracking-tight text-ink">Orders</h1>
+      <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => {
+        event.preventDefault(); setPage(1); setSearch(searchInput.trim());
+      }}>
+        <Input id="order-search" label="Order number or customer phone" hint="Enter the complete order number or mobile number (+880 supported)." value={searchInput} onChange={(event) => setSearchInput(event.target.value)} maxLength={40} />
+        <Button type="submit">Search</Button>
+        <Button type="button" variant="secondary" onClick={() => { setSearchInput(''); setSearch(''); setPage(1); }}>Clear</Button>
+      </form>
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
@@ -127,6 +139,7 @@ export function AdminOrders() {
                       {order.items.length === 1 ? '' : 's'}
                     </p>
                     <p className="text-xs font-medium text-ink">{order.shippingAddress.phone}</p>
+                    <p className="text-xs text-muted">{order.shippingAddress.fullName}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <OrderStatusBadge status={order.status} />
