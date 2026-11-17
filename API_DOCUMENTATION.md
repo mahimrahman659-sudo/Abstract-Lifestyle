@@ -17,13 +17,24 @@ Codes: `VALIDATION_ERROR` 400 · `UNAUTHORIZED` 401 · `FORBIDDEN` 403 · `NOT_F
 | POST /auth/google | public | `{ credential }` (Google Identity Services ID token, max 4096 chars) | 200 `{ user }` + `Set-Cookie: al_token` |
 | POST /auth/logout | public (clears cookie even with expired token) | — | 204 — clears the `al_token` cookie |
 | GET /users/me | customer | — | 200 `{ user }` |
-| PATCH /users/me | customer | `{ name? }` | 200 `{ user }` |
+| PATCH /users/me | customer | `{ name }` | 200 `{ user }` |
 | GET /users/me/addresses | customer | — | 200 `{ items: [Address] }` |
 | POST /users/me/addresses | customer | Address fields | 201 `{ address }` |
 | PATCH /users/me/addresses/:id | customer | partial Address | 200 `{ address }` |
 | DELETE /users/me/addresses/:id | customer | — | 204 |
 
 `user` = `{ id, email, name, role, addresses }` — never includes passwordHash or googleId. Logout = `POST /auth/logout` clears the httpOnly cookie server-side (client JS cannot).
+
+Address mutations are scoped to the authenticated account and serialized through
+transactions. A nonempty address list has exactly one default: the first address
+becomes default automatically, setting another clears the old default, and deleting
+the default promotes the first remaining address. Address/profile changes never
+rewrite historical order delivery snapshots. Foreign address ids return 404.
+
+Optional address strings are `label`, `line2`, `city`, `state`, `postalCode` and
+`country`. In PATCH, omitting a field preserves it; sending `""` (or whitespace,
+trimmed by validation) intentionally clears it to an empty string in MongoDB.
+Required fields cannot be cleared. `isDefault` is an optional boolean, not a string.
 
 **Google sign-in (`POST /auth/google`):** the `credential` is a Google Identity Services ID token, verified server-side with `google-auth-library` (`verifyIdToken`, audience = `GOOGLE_CLIENT_ID`). **Any** verification failure (bad signature, expired, wrong audience, unverified email, missing claims) returns the same generic `401 { error: { code: "UNAUTHORIZED", message: "Google sign-in failed" } }`. Only `email_verified === true` tokens are accepted. Lookup order: `googleId` match → normalized-email match (the Google account is then **linked** to the existing user — safe because the email is Google-verified; password and role are untouched) → new **customer** account is created (name/email from the token; role is always `customer`, never taken from the token or request). Successful sign-in behaves exactly like `POST /auth/login`: user DTO in the body (never a token) + the same `al_token` HttpOnly cookie. Rate-limited like the other credential endpoints (10/15 min per IP). Google-only accounts (no password) cannot use `POST /auth/login` — it fails with the same generic `Invalid email or password` error as a wrong password.
 
@@ -59,7 +70,7 @@ Cart notes: prices/stock are always recomputed from the DB (`unitPrice = variant
 | POST /orders | `{ checkoutId (UUID), shippingAddressId }` OR `{ checkoutId, shippingAddress: {...} }`, `paymentMethod: 'cod'` | 201 `{ order }`; 409 `CART_NOT_ORDERABLE` (with per-line `details[]`) when any line is archived/unpublished/out of stock/priceless, 409 `CHECKOUT_IN_PROGRESS`, 409 `CHECKOUT_CONFLICT` when the cart changed mid-checkout. Idempotent: replaying the same `checkoutId` returns the existing order |
 | GET /orders | `?page&limit` | 200 list envelope (own orders, newest first) |
 | GET /orders/:id | — | 200 `{ order }` (own or admin) |
-| POST /orders/:id/cancel | — | 200 `{ order }` — customer cancel only from `pending`; restores stock exactly once (double-cancel safe); 409 otherwise |
+| POST /orders/:id/cancel | — | 200 `{ order }` — owner cancellation from `pending` or `processing`, before shipment; atomically restores stock exactly once; 409 after shipment or repeat cancellation |
 
 Order JSON: `{ id, orderNumber, checkoutId, status, paymentMethod, paymentStatus, items[], shippingAddress, subtotal, shippingFee, total, statusHistory, createdAt }`. `items[]` = purchase-time snapshots `{ product, variant, name, sku, size, color, image, unitPrice, quantity, lineTotal }`. Checkout re-validates and re-prices everything from the DB (never accepts client items/prices); the per-line stock decrements, the order creation and the cart clear run in **one MongoDB transaction** (Atlas replica set), so any failure aborts everything; concurrent checkouts on the same cart are rejected with 409. `checkoutId` is a client-generated UUID stored under a unique (sparse) index — a repeated request with the same `checkoutId` returns the original order instead of creating a second one.
 
@@ -86,7 +97,7 @@ Sale pricing (admin): `POST/PATCH /admin/products` accept `compareAtPrice` (inte
 | POST /admin/uploads/destroy | `{ publicIds: string[] }` (1–20, own folder only) | 204 — deletes assets that were uploaded but never attached to a saved product (best-effort) |
 | GET /admin/site-images | — | 200 `{ items: [{ key, image }] }` — all marketing slots in canonical order |
 | PUT /admin/site-images/:key | `{ image: { url, publicId } \| null }` (`:key` = hero \| promo-1 \| promo-2) | 200 `{ item }` — upserts the slot; `null` clears it (replaces/removes destroy the previous Cloudinary asset, best-effort) |
-| GET /admin/orders | `?status&page&limit` | 200 list envelope (all orders) |
+| GET /admin/orders | `?search&status&page&limit` | Admin only; exact complete order-number or normalized Bangladesh mobile lookup (+880/880/local); status-filtered, stable pagination. Invalid/partial queries return 400; no unrestricted regex search. |
 | GET /admin/orders/:id | — | 200 `{ order, customer: { id, name, email } \| null }` (any user's order) |
 | PATCH /admin/orders/:id/status | `{ status }` | 200 `{ order }` |
 | GET /admin/customers | `?search&page&limit` | 200 list envelope |

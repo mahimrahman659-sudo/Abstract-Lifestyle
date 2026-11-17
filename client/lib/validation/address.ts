@@ -1,5 +1,5 @@
 import type { AddressPayload } from '@/lib/types';
-import { BD_MOBILE_ERROR, normalizeBdMobile } from '@/lib/utils/phone';
+import { BD_MOBILE_ERROR, normalizeBdMobile } from '../utils/phone.ts';
 import type { FieldErrors } from './auth';
 
 /**
@@ -7,6 +7,15 @@ import type { FieldErrors } from './auth';
  * Kept in sync with the addressSchema in server/src/schemas/user.schema.ts.
  */
 export type AddressFormValues = AddressPayload;
+
+export const optionalAddressFields = [
+  { name: 'label', label: 'Address label (optional)', maxLength: 30 },
+  { name: 'line2', label: 'Address line 2 (optional)', maxLength: 200 },
+  { name: 'city', label: 'City (optional)', maxLength: 100 },
+  { name: 'state', label: 'State or region (optional)', maxLength: 100 },
+  { name: 'postalCode', label: 'Postal code (optional)', maxLength: 20 },
+  { name: 'country', label: 'Country (optional)', maxLength: 100 },
+] as const;
 
 export const validateAddress = (values: AddressFormValues): FieldErrors<AddressFormValues> => {
   const errors: FieldErrors<AddressFormValues> = {};
@@ -79,5 +88,15 @@ export const cleanAddressPayload = (values: AddressFormValues): AddressPayload =
   optional('state');
   optional('postalCode');
   optional('country');
+  return payload;
+};
+
+/** PATCH: omitted optional fields stay omitted; explicit empty strings clear them. */
+export const addressUpdatePayload = (values: AddressFormValues): AddressPayload => {
+  const payload = cleanAddressPayload(values);
+  for (const { name } of optionalAddressFields) {
+    if (values[name] !== undefined) payload[name] = values[name].trim();
+  }
+  if (values.isDefault !== undefined) payload.isDefault = values.isDefault;
   return payload;
 };

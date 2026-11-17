@@ -5,6 +5,7 @@ import { VariantModel } from '../models/variant.model.js';
 import { UserModel, type UserDocument } from '../models/user.model.js';
 import type { AdminOrderQuery, AdminOrderStatusUpdateInput } from '../schemas/admin.schema.js';
 import { toOrderDto, type OrderDto, type OrderListResult } from './order.service.js';
+import { normalizeBdMobile } from '../utils/phone.js';
 
 const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   pending: ['processing', 'cancelled'],
@@ -15,7 +16,14 @@ const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 };
 
 export const adminListOrders = async (query: AdminOrderQuery): Promise<OrderListResult> => {
-  const filter = query.status ? { status: query.status } : {};
+  // Exact indexed lookup only: never interpolate user input into a regex.
+  const phone = query.search ? normalizeBdMobile(query.search) : null;
+  const filter = {
+    ...(query.status ? { status: query.status } : {}),
+    ...(query.search ? phone
+      ? { 'shippingAddress.phone': phone }
+      : { orderNumber: query.search.toUpperCase() } : {}),
+  };
 
   const [orders, total] = await Promise.all([
     OrderModel.find(filter)

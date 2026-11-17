@@ -421,7 +421,7 @@ export const getOrder = async (user: UserDocument, orderId: string): Promise<Ord
 };
 
 /**
- * Customer cancellation: only while `pending`. The status change, the
+ * Customer cancellation: while pending or processing. The status change, the
  * `stockRestored` flag and the stock restoration all happen in ONE
  * transaction, so a failed restore can never leave an order cancelled
  * without its stock back (and vice versa).
@@ -433,7 +433,7 @@ export const cancelOrder = async (user: UserDocument, orderId: string): Promise<
   try {
     await session.withTransaction(async () => {
       const updated = await OrderModel.findOneAndUpdate(
-        { _id: orderId, user: user._id, status: 'pending', stockRestored: { $ne: true } },
+        { _id: orderId, user: user._id, status: { $in: ['pending', 'processing'] }, stockRestored: { $ne: true } },
         {
           $set: { status: 'cancelled', stockRestored: true },
           $push: { statusHistory: { status: 'cancelled', at: new Date() } },
@@ -448,7 +448,7 @@ export const cancelOrder = async (user: UserDocument, orderId: string): Promise<
         if (!exists) {
           throw new AppError(404, 'NOT_FOUND', 'Order not found');
         }
-        throw new AppError(409, 'CONFLICT', 'Order cannot be cancelled');
+        throw new AppError(409, 'CONFLICT', 'Only pending or processing orders can be cancelled. This order may already have shipped or been cancelled.');
       }
 
       // Only the winner of the guarded transition above restores stock. A

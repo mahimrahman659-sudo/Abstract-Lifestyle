@@ -137,7 +137,7 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
 
   const { order } = state;
   const address = order.shippingAddress;
-  const canCancel = order.status === 'pending';
+  const canCancel = order.status === 'pending' || order.status === 'processing';
 
   return (
     <div className="space-y-6">
@@ -324,7 +324,7 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
           ) : (
             <div className="mt-3">
               <p className="text-sm text-muted">
-                Changed your mind? Pending orders can be cancelled and stock will be restored.
+                Changed your mind? Pending or processing orders can be cancelled before shipment.
               </p>
               <Button variant="secondary" className="mt-3" onClick={() => setConfirming(true)}>
                 Cancel order

@@ -7,6 +7,8 @@ import { ProductModel } from '../models/product.model.js';
 import { UserModel } from '../models/user.model.js';
 import { VariantModel } from '../models/variant.model.js';
 import { slugify } from '../utils/slug.js';
+import { BCRYPT_COST } from '../config/password.js';
+import { pathToFileURL } from 'node:url';
 
 interface CategorySeed {
   name: string;
@@ -49,13 +51,13 @@ const upsertProduct = async (seed: ProductSeed): Promise<Types.ObjectId> => {
   const doc = await ProductModel.findOneAndUpdate(
     { slug },
     {
-      $set: {
+      $setOnInsert: {
         name: seed.name,
         slug,
         description: seed.description,
         category: seed.categoryId,
         basePrice: seed.basePrice,
-        status: 'active',
+        status: 'draft',
       },
     },
     { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
@@ -64,6 +66,12 @@ const upsertProduct = async (seed: ProductSeed): Promise<Types.ObjectId> => {
   if (!doc) {
     throw new Error(`Failed to upsert product: ${seed.name}`);
   }
+  // Repair only legacy imageless demo publications. The image predicate is
+  // rechecked by MongoDB so an operator adding legitimate images is preserved.
+  await ProductModel.updateOne(
+    { _id: doc._id, status: 'active', $or: [{ images: { $size: 0 } }, { images: { $exists: false } }] },
+    { $set: { status: 'draft' } },
+  ).exec();
   return doc._id;
 };
 
@@ -71,7 +79,7 @@ const upsertVariant = async (seed: VariantSeed): Promise<void> => {
   await VariantModel.findOneAndUpdate(
     { sku: seed.sku },
     {
-      $set: {
+      $setOnInsert: {
         product: seed.productId,
         sku: seed.sku,
         size: seed.size,
@@ -85,17 +93,15 @@ const upsertVariant = async (seed: VariantSeed): Promise<void> => {
   ).exec();
 };
 
-const seed = async (): Promise<void> => {
+export const seedData = async (adminOnly = false): Promise<void> => {
   // `--admin-only` seeds the admin user + category trees and skips the demo
   // products/variants (use this for production databases).
-  const adminOnly = process.argv.includes('--admin-only');
-  await connectDB({ requireTransactions: false });
 
   // 1. Admin user (credentials from env — see .env.example)
-  const passwordHash = await bcrypt.hash(env.ADMIN_PASSWORD, 10);
+  const passwordHash = await bcrypt.hash(env.ADMIN_PASSWORD, BCRYPT_COST);
   await UserModel.findOneAndUpdate(
     { email: env.ADMIN_EMAIL },
-    { $set: { email: env.ADMIN_EMAIL, passwordHash, name: 'Store Admin', role: 'admin' } },
+    { $setOnInsert: { email: env.ADMIN_EMAIL, passwordHash, name: 'Store Admin', role: 'admin' } },
     { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
   ).exec();
 
@@ -175,10 +181,18 @@ const seed = async (): Promise<void> => {
     console.log(`  variants: ${variants}`);
   }
 
-  await disconnectDB();
 };
 
-seed().catch((error: unknown) => {
-  console.error('Seed failed:', error);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  void (async () => {
+    try {
+      await connectDB({ requireTransactions: false });
+      await seedData(process.argv.includes('--admin-only'));
+    } catch {
+      console.error('Seed failed. Check the configured database and credentials.');
+      process.exitCode = 1;
+    } finally {
+      await disconnectDB();
+    }
+  })();
+}

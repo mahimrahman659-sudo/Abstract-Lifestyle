@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { objectIdSchema } from './common.schema.js';
+import { normalizeBdMobile } from '../utils/phone.js';
 
 export const adminIdParamsSchema = z.object({ id: objectIdSchema });
 
@@ -21,6 +22,10 @@ export const adminProductQuerySchema = z.object({
 });
 
 export const adminOrderQuerySchema = z.object({
+  search: z.string().trim().max(40).refine(
+    (value) => normalizeBdMobile(value) !== null || /^AL-\d{8}-[A-Z2-9]{4}$/i.test(value),
+    'Enter a complete order number or Bangladeshi mobile number.',
+  ).optional(),
   status: z.enum(['pending', 'processing', 'shipped', 'delivered', 'cancelled']).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(12),
