@@ -3,10 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { ProductGallery } from "@/components/catalog/ProductGallery";
-import {
-  pickInitialSelection,
-  ProductSelectionProvider,
-} from "@/components/catalog/ProductSelection";
+import { ProductSelectionProvider } from "@/components/catalog/ProductSelection";
+import { pickInitialSelection } from "@/lib/catalog/product-selection";
 import { NewArrivalBadge } from "@/components/catalog/NewArrivalBadge";
 import { ProductCard, ProductImage } from "@/components/catalog/ProductCard";
 import { ProductTabs } from "@/components/catalog/ProductTabs";

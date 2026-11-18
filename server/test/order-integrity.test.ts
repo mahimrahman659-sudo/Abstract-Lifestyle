@@ -998,6 +998,59 @@ describe('Phase 0 — order integrity (A5, B1, B2, B3)', () => {
       },
     });
 
+    it('deletes an unreferenced product and its variants only after admin authorization', async () => {
+      const fixture = await makeFixture();
+      const path = `/admin/products/${fixture.product}`;
+      assert.equal((await request(null, path, 'DELETE')).status, 401);
+      assert.equal((await request(fixture.user, path, 'DELETE')).status, 403);
+      assert.ok(await ProductModel.exists({ _id: fixture.product }));
+      fixture.user.role = 'admin'; await fixture.user.save();
+      assert.equal((await request(fixture.user, path, 'DELETE')).status, 204);
+      assert.equal(await ProductModel.exists({ _id: fixture.product }), null);
+      assert.equal(await VariantModel.countDocuments({ product: fixture.product }), 0);
+      assert.equal((await request(fixture.user, path, 'DELETE')).status, 404);
+    });
+
+    it('archives an ordered product through DELETE and preserves cancellation stock targets', async () => {
+      const fixture = await makeFixture({ stock: 5 });
+      await addItem(fixture.user._id, fixture.variant.toString(), 1);
+      const order = await placeOrder(fixture.user);
+      const before = JSON.stringify((await OrderModel.findById(order.id))?.items);
+      fixture.user.role = 'admin'; await fixture.user.save();
+      const response = await request(fixture.user, `/admin/products/${fixture.product}`, 'DELETE');
+      assert.equal(response.status, 200);
+      const body = await response.json() as { archived: boolean; orders: number };
+      assert.equal(body.archived, true); assert.equal(body.orders, 1);
+      assert.equal((await ProductModel.findById(fixture.product))?.status, 'archived');
+      assert.ok(await VariantModel.exists({ _id: fixture.variant }));
+      await cancelOrder(fixture.user, order.id);
+      assert.equal(await stockOf(fixture.variant), 5);
+      assert.equal(JSON.stringify((await OrderModel.findById(order.id))?.items), before);
+    });
+
+    it('deletes empty categories and reports dependencies without deleting occupied categories', async () => {
+      const fixture = await makeFixture();
+      const product = await ProductModel.findById(fixture.product); assert.ok(product);
+      const occupied = `/admin/categories/${product.category}`;
+      assert.equal((await request(null, occupied, 'DELETE')).status, 401);
+      assert.equal((await request(fixture.user, occupied, 'DELETE')).status, 403);
+      fixture.user.role = 'admin'; await fixture.user.save();
+      const blocked = await request(fixture.user, occupied, 'DELETE');
+      assert.equal(blocked.status, 409);
+      const blockedMessage = (await blocked.json() as { error: { message: string } }).error.message;
+      assert.match(blockedMessage, /1 product/);
+      assert.match(blockedMessage, /draft and archived products/);
+      assert.ok(await CategoryModel.exists({ _id: product.category }));
+      const parent = await CategoryModel.create({ name: 'Delete parent', slug: unique('delete-parent') });
+      const child = await CategoryModel.create({ name: 'Delete child', slug: unique('delete-child'), parent: parent._id });
+      const response = await request(fixture.user, `/admin/categories/${parent._id}`, 'DELETE');
+      assert.equal(response.status, 409);
+      assert.match((await response.json() as { error: { message: string } }).error.message, /1 subcategory/);
+      assert.equal((await request(fixture.user, `/admin/categories/${child._id}`, 'DELETE')).status, 204);
+      assert.equal((await request(fixture.user, `/admin/categories/${parent._id}`, 'DELETE')).status, 204);
+      assert.equal((await request(fixture.user, `/admin/categories/${parent._id}`, 'DELETE')).status, 404);
+    });
+
     it('returns 409 CART_NOT_ORDERABLE with per-line details', async () => {
       const fixture = await makeFixture();
       await addItem(fixture.user._id, fixture.variant.toString(), 1);

@@ -1,11 +1,7 @@
 'use client';
 
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
-
-export interface ProductSelection {
-  size: string | null;
-  color: string | null;
-}
+import type { ProductSelection } from '@/lib/catalog/product-selection';
 
 interface ProductSelectionContextValue {
   selection: ProductSelection;
@@ -13,14 +9,6 @@ interface ProductSelectionContextValue {
 }
 
 const ProductSelectionContext = createContext<ProductSelectionContextValue | null>(null);
-
-/** First purchasable variant (or the first one when everything is sold out). */
-export const pickInitialSelection = (
-  variants: Array<{ size: string | null; color: string | null; stock: number }>,
-): ProductSelection => {
-  const initial = variants.find((variant) => variant.stock > 0) ?? variants[0] ?? null;
-  return { size: initial?.size ?? null, color: initial?.color ?? null };
-};
 
 /**
  * Shares the PDP variant selection between the gallery (variant images) and the
