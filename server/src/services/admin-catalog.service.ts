@@ -277,7 +277,9 @@ export const deleteCategory = async (categoryId: string): Promise<void> => {
           ? `This category still has ${children}. Delete ${childCount === 1 ? 'it' : 'them'} first.`
           : `This category still has ${products}. Move ${productCount === 1 ? 'it' : 'them'} to another category or delete ${productCount === 1 ? 'it' : 'them'} first.`;
 
-    throw new AppError(409, 'CONFLICT', message);
+    throw new AppError(409, 'CONFLICT', productCount > 0
+      ? `${message} This count includes draft and archived products.`
+      : message);
   }
 
   await CategoryModel.deleteOne({ _id: category._id }).exec();

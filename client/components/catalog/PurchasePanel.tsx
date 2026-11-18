@@ -11,10 +11,8 @@ import { Price } from '@/components/ui/Price';
 import { ApiError } from '@/lib/api/client';
 import { getSwatchColor, isLightSwatch } from '@/lib/catalog/color-map';
 import { sortSizes } from '@/lib/catalog/size-order';
-import {
-  pickInitialSelection,
-  useProductSelectionContext,
-} from '@/components/catalog/ProductSelection';
+import { useProductSelectionContext } from '@/components/catalog/ProductSelection';
+import { pickInitialSelection } from '@/lib/catalog/product-selection';
 import type { PublicVariant } from '@/lib/types';
 import { cn } from '@/lib/utils/cn';
 
