@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
+import { PaymentStatusBadge } from '@/components/orders/PaymentStatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Pagination } from '@/components/ui/Pagination';
@@ -10,7 +11,8 @@ import { Price } from '@/components/ui/Price';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api/client';
 import { orderApi } from '@/lib/api/order';
-import type { ListEnvelope, OrderDto } from '@/lib/types';
+import { notificationApi } from '@/lib/api/payment';
+import type { CustomerNotification, ListEnvelope, OrderDto } from '@/lib/types';
 
 type OrdersState =
   | { status: 'loading' }
@@ -26,8 +28,26 @@ const formatDate = (iso: string): string =>
 
 export function OrdersHistory() {
   const [state, setState] = useState<OrdersState>({ status: 'loading' });
+  const [notifications, setNotifications] = useState<CustomerNotification[]>([]);
   const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { items } = await notificationApi.list();
+        if (!cancelled) {
+          setNotifications(items.slice(0, 5));
+        }
+      } catch {
+        // Payment status is still visible on each order.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,6 +79,29 @@ export function OrdersHistory() {
     <div className="mx-auto max-w-4xl px-4 py-8 sm:py-10">
       <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">Your orders</h1>
       <p className="mt-1 text-sm text-muted">Review past orders and track their status.</p>
+
+      {notifications.length > 0 ? (
+        <section aria-labelledby="payment-updates-heading" className="mt-6">
+          <h2 id="payment-updates-heading" className="text-sm font-semibold text-ink">
+            Payment updates
+          </h2>
+          <ul className="mt-2 space-y-2">
+            {notifications.map((notification) => (
+              <li key={notification.id}>
+                <Link
+                  href={`/orders/${notification.orderId}`}
+                  className="block rounded-xl border border-line bg-tile px-4 py-3 text-sm text-ink transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  {notification.message}
+                  <span className="mt-1 block text-xs text-muted">
+                    {formatDate(notification.createdAt)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <div className="mt-6">
         {state.status === 'loading' ? (
@@ -109,8 +152,11 @@ export function OrdersHistory() {
                           : 'items'}
                       </p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                       <OrderStatusBadge status={order.status} />
+                      {order.paymentMethod !== 'cod' ? (
+                        <PaymentStatusBadge status={order.paymentStatus} />
+                      ) : null}
                       <span className="text-sm font-semibold text-ink">
                         <Price poisha={order.total} />
                       </span>

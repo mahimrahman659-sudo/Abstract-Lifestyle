@@ -5,7 +5,9 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ProductImage } from '@/components/catalog/ProductCard';
 import { CheckoutSteps } from '@/components/checkout/CheckoutSteps';
+import { ManualPaymentPanel } from '@/components/orders/ManualPaymentPanel';
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
+import { PaymentStatusBadge } from '@/components/orders/PaymentStatusBadge';
 import { Button } from '@/components/ui/Button';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Notice, type NoticeTone } from '@/components/ui/Notice';
@@ -13,13 +15,26 @@ import { Price } from '@/components/ui/Price';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api/client';
 import { orderApi } from '@/lib/api/order';
+import { paymentApi } from '@/lib/api/payment';
 import { site } from '@/config/site';
-import type { OrderDto } from '@/lib/types';
+import type { OrderDto, PaymentMethod, PublicPaymentMethod } from '@/lib/types';
 
 type DetailState =
   | { status: 'loading' }
   | { status: 'error'; message: string; notFound: boolean }
   | { status: 'success'; order: OrderDto };
+
+type MethodsState =
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'success'; items: PublicPaymentMethod[] };
+
+const PAYMENT_LABELS: Record<PaymentMethod, string> = {
+  cod: 'Cash on Delivery',
+  bkash: 'bKash',
+  nagad: 'Nagad',
+  rocket: 'Rocket',
+};
 
 interface DetailNotice {
   tone: NoticeTone;
@@ -41,10 +56,36 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
   // "order placed" confirmation rather than a historical order view.
   const justPlaced = searchParams.get('placed') === '1';
   const [state, setState] = useState<DetailState>({ status: 'loading' });
+  const [methods, setMethods] = useState<MethodsState>({ status: 'loading' });
   const [notice, setNotice] = useState<DetailNotice | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { methods: items } = await paymentApi.methods();
+        if (!cancelled) {
+          setMethods({ status: 'success', items });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMethods({
+            status: 'error',
+            message:
+              error instanceof ApiError
+                ? error.message
+                : 'Could not load payment instructions.',
+          });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,7 +126,13 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
       try {
         const { order } = await orderApi.cancel(orderId);
         setState({ status: 'success', order });
-        setNotice({ tone: 'success', message: 'Order cancelled. Any reserved stock has been restored.' });
+        setNotice({
+          tone: 'success',
+          message:
+            order.paymentStatus === 'refund_pending'
+              ? 'Order cancelled. A manual refund is pending; no automatic refund was issued.'
+              : 'Order cancelled. Any reserved stock has been restored.',
+        });
         setConfirming(false);
       } catch (error) {
         setNotice({
@@ -137,7 +184,14 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
 
   const { order } = state;
   const address = order.shippingAddress;
-  const canCancel = order.status === 'pending' || order.status === 'processing';
+  const isManualPayment = order.paymentMethod !== 'cod';
+  const canCancel =
+    (order.status === 'pending' || order.status === 'processing') &&
+    order.paymentStatus !== 'pending_verification';
+  const paymentMethodInfo =
+    methods.status === 'success'
+      ? (methods.items.find((method) => method.method === order.paymentMethod) ?? null)
+      : null;
 
   return (
     <div className="space-y-6">
@@ -151,14 +205,29 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
           >
             <p className="flex items-center gap-2 text-base font-semibold text-success">
               <span aria-hidden="true">✓</span>
-              {site.checkout.confirmationTitle}
+              {isManualPayment ? site.checkout.manualPaymentTitle : site.checkout.confirmationTitle}
             </p>
             <p className="mt-1 text-sm text-ink">
               Your order number is <span className="font-semibold">{order.orderNumber}</span>.
             </p>
-            <p className="mt-2 text-sm text-ink">
-              {site.checkout.callConfirmation.replace('{phone}', address.phone)}
-            </p>
+            {isManualPayment ? (
+              <>
+                <p className="mt-2 text-sm text-ink">
+                  Send <span className="font-semibold"><Price poisha={order.total} /></span> using{' '}
+                  {PAYMENT_LABELS[order.paymentMethod]} and submit the transaction details below.
+                </p>
+                <a
+                  href="#payment-details"
+                  className="mt-3 inline-flex min-h-11 items-center rounded-full bg-brand px-5 text-sm font-medium text-white transition-colors hover:bg-brand-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  Go to payment details
+                </a>
+              </>
+            ) : (
+              <p className="mt-2 text-sm text-ink">
+                {site.checkout.callConfirmation.replace('{phone}', address.phone)}
+              </p>
+            )}
           </section>
 
           <section
@@ -169,7 +238,10 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
               What happens next
             </h2>
             <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-muted">
-              {site.checkout.whatHappensNext.map((line) => (
+              {(isManualPayment
+                ? site.checkout.manualPaymentNext
+                : site.checkout.whatHappensNext
+              ).map((line) => (
                 <li key={line}>{line}</li>
               ))}
             </ol>
@@ -197,10 +269,12 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
           Order {order.orderNumber}
         </h1>
         <OrderStatusBadge status={order.status} />
+        {isManualPayment ? <PaymentStatusBadge status={order.paymentStatus} /> : null}
       </header>
       <p className="text-sm text-muted">
-        Placed on {formatDate(order.createdAt)} · Payment method: Cash on Delivery (
-        {order.paymentStatus})
+        Placed on {formatDate(order.createdAt)} · Payment method:{' '}
+        {PAYMENT_LABELS[order.paymentMethod]}
+        {isManualPayment ? null : ` (${order.paymentStatus})`}
       </p>
 
       <p className="text-sm font-medium text-ink">
@@ -208,6 +282,18 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
       </p>
 
       {notice ? <Notice tone={notice.tone}>{notice.message}</Notice> : null}
+
+      {isManualPayment ? (
+        <div id="payment-details">
+          <ManualPaymentPanel
+            order={order}
+            method={paymentMethodInfo}
+            loading={methods.status === 'loading'}
+            loadError={methods.status === 'error' ? methods.message : null}
+            onOrderChange={(updated) => setState({ status: 'success', order: updated })}
+          />
+        </div>
+      ) : null}
 
       <section
         aria-labelledby="order-items-heading"
@@ -301,7 +387,9 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
           {confirming ? (
             <div className="mt-3 space-y-3">
               <Notice tone="info">
-                Cancel this order? Any reserved stock will be restored. This cannot be undone.
+                {order.paymentStatus === 'paid'
+                  ? 'Cancel this order? Stock will be restored and a manual refund will be required. No automatic refund is issued. This cannot be undone.'
+                  : 'Cancel this order? Any reserved stock will be restored. This cannot be undone.'}
               </Notice>
               <div className="flex flex-wrap gap-3">
                 <Button
@@ -332,6 +420,13 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
             </div>
           )}
         </section>
+      ) : null}
+
+      {isManualPayment && order.paymentStatus === 'pending_verification' ? (
+        <Notice tone="info">
+          Cancellation is unavailable while your payment is being verified. Contact support if you
+          need to change or cancel this order.
+        </Notice>
       ) : null}
 
       {order.statusHistory.length > 0 ? (

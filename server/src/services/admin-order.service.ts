@@ -6,6 +6,8 @@ import { UserModel, type UserDocument } from '../models/user.model.js';
 import type { AdminOrderQuery, AdminOrderStatusUpdateInput } from '../schemas/admin.schema.js';
 import { toOrderDto, type OrderDto, type OrderListResult } from './order.service.js';
 import { normalizeBdMobile } from '../utils/phone.js';
+import { paymentStatusAfterCancellation, paymentStatusFilter } from '../utils/payment.js';
+import { deliverNotifications, enqueueNotification } from './notification.service.js';
 
 const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   pending: ['processing', 'cancelled'],
@@ -20,6 +22,8 @@ export const adminListOrders = async (query: AdminOrderQuery): Promise<OrderList
   const phone = query.search ? normalizeBdMobile(query.search) : null;
   const filter = {
     ...(query.status ? { status: query.status } : {}),
+    ...(query.paymentStatus ? { paymentStatus: query.paymentStatus } : {}),
+    ...(query.paymentMethod ? { paymentMethod: query.paymentMethod } : {}),
     ...(query.search ? phone
       ? { 'shippingAddress.phone': phone }
       : { orderNumber: query.search.toUpperCase() } : {}),
@@ -35,7 +39,7 @@ export const adminListOrders = async (query: AdminOrderQuery): Promise<OrderList
   ]);
 
   return {
-    items: orders.map(toOrderDto),
+    items: orders.map((order) => toOrderDto(order, { includeInternal: true })),
     page: query.page,
     limit: query.limit,
     total,
@@ -63,7 +67,7 @@ export const adminGetOrder = async (orderId: string): Promise<AdminOrderDetailDt
   const user = await UserModel.findById(order.user).exec();
 
   return {
-    order: toOrderDto(order),
+    order: toOrderDto(order, { includeInternal: true }),
     customer: user
       ? { id: user._id.toString(), name: user.name, email: user.email }
       : null,
@@ -94,27 +98,89 @@ export const adminUpdateOrderStatus = async (
         );
       }
 
+      if (
+        target !== 'cancelled' &&
+        order.paymentMethod !== 'cod' &&
+        order.paymentStatus !== 'paid'
+      ) {
+        throw new AppError(
+          409,
+          'PAYMENT_NOT_CONFIRMED',
+          'This prepaid order cannot be processed, shipped or delivered until its payment is verified.',
+        );
+      }
+
+      if (target === 'cancelled' && order.paymentStatus === 'pending_verification') {
+        throw new AppError(
+          409,
+          'PAYMENT_REVIEW_IN_PROGRESS',
+          'Resolve the pending payment verification before cancelling this order.',
+        );
+      }
+
+      let nextPaymentStatus = order.paymentStatus;
+      if (target === 'cancelled') {
+        const computed = paymentStatusAfterCancellation(order.paymentMethod, order.paymentStatus);
+        if (computed === null) {
+          throw new AppError(409, 'PAYMENT_REVIEW_IN_PROGRESS', 'Payment review is in progress');
+        }
+        nextPaymentStatus = computed;
+      }
+
+      const now = new Date();
       // Atomic guarded transition: the status filter (plus stockRestored guard
       // for cancellations) makes sure stock is restored exactly once, never twice.
       const updated = await OrderModel.findOneAndUpdate(
         {
           _id: order._id,
           status: order.status,
+          ...paymentStatusFilter(order.paymentStatus),
           ...(target === 'cancelled' ? { stockRestored: { $ne: true } } : {}),
         },
         {
           $set: {
             status: target,
             ...(target === 'cancelled' ? { stockRestored: true } : {}),
-            ...(target === 'delivered' ? { paymentStatus: 'paid' } : {}),
+            ...(target === 'delivered' && order.paymentMethod === 'cod'
+              ? { paymentStatus: 'paid' }
+              : {}),
+            ...(target === 'cancelled' && nextPaymentStatus !== order.paymentStatus
+              ? { paymentStatus: nextPaymentStatus }
+              : {}),
           },
-          $push: { statusHistory: { status: target, at: new Date(), by: admin._id } },
+          $push: {
+            statusHistory: { status: target, at: now, by: admin._id },
+            ...(target === 'cancelled' && nextPaymentStatus !== order.paymentStatus
+              ? {
+                  'payment.verificationHistory': {
+                    action: 'cancelled',
+                    at: now,
+                    actor: 'admin',
+                    by: admin._id,
+                    reason: null,
+                  },
+                }
+              : {}),
+          },
         },
         { returnDocument: 'after', session },
       ).exec();
 
       if (!updated) {
         throw new AppError(409, 'CONFLICT', 'Order was modified concurrently');
+      }
+
+      if (target === 'cancelled' && nextPaymentStatus === 'refund_pending') {
+        await enqueueNotification(
+          {
+            user: updated.user,
+            order: updated._id,
+            orderNumber: updated.orderNumber,
+            type: 'payment_refund_pending',
+            message: `Order ${updated.orderNumber} was cancelled after payment. A manual refund is pending.`,
+          },
+          session,
+        );
       }
 
       // Status change + stock restore + flag commit together or not at all.
@@ -137,7 +203,7 @@ export const adminUpdateOrderStatus = async (
         }
       }
 
-      result.updated = toOrderDto(updated);
+      result.updated = toOrderDto(updated, { includeInternal: true });
     });
   } finally {
     await session.endSession();
@@ -146,5 +212,6 @@ export const adminUpdateOrderStatus = async (
   if (!result.updated) {
     throw new AppError(409, 'CONFLICT', 'Order was modified concurrently');
   }
+  deliverNotifications();
   return result.updated;
 };

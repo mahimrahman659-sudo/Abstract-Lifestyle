@@ -81,5 +81,8 @@ export const adminGetCustomer = async (
     .limit(5)
     .exec();
 
-  return { user: toCustomerDto(user), recentOrders: recentOrders.map(toOrderDto) };
+  return {
+    user: toCustomerDto(user),
+    recentOrders: recentOrders.map((order) => toOrderDto(order, { includeInternal: true })),
+  };
 };
