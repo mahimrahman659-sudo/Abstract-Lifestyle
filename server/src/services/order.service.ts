@@ -7,6 +7,8 @@ import {
   OrderModel,
   type OrderDocument,
   type OrderItem,
+  type PaymentMethod,
+  type PaymentStatus,
   type ShippingAddressSnapshot,
 } from '../models/order.model.js';
 import { ProductModel } from '../models/product.model.js';
@@ -15,14 +17,54 @@ import type { UserDocument } from '../models/user.model.js';
 import type { CreateOrderInput, OrderListQuery } from '../schemas/order.schema.js';
 import { generateOrderNumber } from '../utils/order-number.js';
 import { firstImageUrl } from '../utils/images.js';
+import { paymentStatusAfterCancellation, paymentStatusFilter } from '../utils/payment.js';
+import { assertPaymentIndexReadyForManualOperations } from '../config/payment-index.js';
 import { getPaymentProvider } from './payment.service.js';
+import { deliverNotifications, enqueueNotification } from './notification.service.js';
+
+export interface OrderPaymentDto {
+  provider: 'cod' | 'manual';
+  senderNumber: string | null;
+  trxId: string | null;
+  submittedAt: Date | null;
+  verifiedBy: string | null;
+  verifiedAt: Date | null;
+  rejectionReason: string | null;
+  refundedBy: string | null;
+  refundedAt: Date | null;
+  refundReference: string | null;
+  refundAmount: number | null;
+  refundRecipient: string | null;
+  refundNote: string | null;
+  claims: Array<{
+    id: string;
+    senderNumber: string;
+    trxId: string;
+    submittedAt: Date;
+    status: 'pending_verification' | 'approved' | 'rejected';
+    reviewedBy: string | null;
+    reviewedAt: Date | null;
+    rejectionReason: string | null;
+  }>;
+  verificationHistory: Array<{
+    action: 'submitted' | 'approved' | 'rejected' | 'refunded' | 'cancelled';
+    at: Date;
+    actor: 'customer' | 'admin' | 'system' | null;
+    by: string | null;
+    reason: string | null;
+    refundReference: string | null;
+    refundAmount: number | null;
+    refundRecipient: string | null;
+  }>;
+}
 
 export interface OrderDto {
   id: string;
   orderNumber: string;
   status: string;
-  paymentMethod: string;
-  paymentStatus: string;
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  payment: OrderPaymentDto;
   items: Array<{
     product: string;
     variant: string;
@@ -59,12 +101,60 @@ const isDuplicateKeyError = (error: unknown): boolean =>
   'code' in error &&
   (error as { code?: unknown }).code === 11000;
 
-export const toOrderDto = (order: OrderDocument): OrderDto => ({
+const toPaymentDto = (order: OrderDocument, includeInternal: boolean): OrderPaymentDto => {
+  const payment = order.payment;
+  return {
+    provider: payment?.provider ?? (order.paymentMethod === 'cod' ? 'cod' : 'manual'),
+    senderNumber: payment?.senderNumber ?? null,
+    trxId: payment?.trxId ?? null,
+    submittedAt: payment?.submittedAt ?? null,
+    verifiedBy: includeInternal && payment?.verifiedBy ? payment.verifiedBy.toString() : null,
+    verifiedAt: payment?.verifiedAt ?? null,
+    rejectionReason: payment?.rejectionReason ?? null,
+    refundedBy: includeInternal && payment?.refundedBy ? payment.refundedBy.toString() : null,
+    refundedAt: payment?.refundedAt ?? null,
+    refundReference: payment?.refundReference ?? null,
+    refundAmount: payment?.refundAmount ?? null,
+    refundRecipient: payment?.refundRecipient ?? null,
+    refundNote: includeInternal ? payment?.refundNote ?? null : null,
+    claims: (payment?.claims ?? []).map((claim) => ({
+      id: claim._id ? claim._id.toString() : '',
+      senderNumber: claim.senderNumber,
+      trxId: claim.trxId,
+      submittedAt: claim.submittedAt,
+      status: claim.status,
+      reviewedBy: includeInternal && claim.reviewedBy ? claim.reviewedBy.toString() : null,
+      reviewedAt: claim.reviewedAt ?? null,
+      rejectionReason: claim.rejectionReason ?? null,
+    })),
+    verificationHistory: (payment?.verificationHistory ?? []).map((entry) => ({
+      action: entry.action,
+      at: entry.at,
+      actor: entry.actor ?? null,
+      by: includeInternal && entry.by ? entry.by.toString() : null,
+      reason: entry.reason ?? null,
+      refundReference: entry.refundReference ?? null,
+      refundAmount: entry.refundAmount ?? null,
+      refundRecipient: entry.refundRecipient ?? null,
+    })),
+  };
+};
+
+export interface OrderDtoOptions {
+  /** Admin-only identifiers and internal notes. Defaults to false. */
+  includeInternal?: boolean;
+}
+
+export const toOrderDto = (
+  order: OrderDocument,
+  options: OrderDtoOptions = {},
+): OrderDto => ({
   id: order._id.toString(),
   orderNumber: order.orderNumber,
   status: order.status,
   paymentMethod: order.paymentMethod,
   paymentStatus: order.paymentStatus,
+  payment: toPaymentDto(order, options.includeInternal === true),
   items: order.items.map((item) => ({
     product: item.product.toString(),
     variant: item.variant.toString(),
@@ -222,11 +312,11 @@ export const createOrder = async (
   input: CreateOrderInput,
 ): Promise<OrderDto> => {
   const shippingAddress = resolveShippingAddress(user, input);
-  const provider = getPaymentProvider(input.paymentMethod);
   const { checkoutId } = input;
 
   // Idempotency: replaying the same checkoutId returns the original order
-  // instead of creating a second one.
+  // instead of creating a second one. This runs before provider gating so a
+  // retry still returns an order even if the method was disabled afterwards.
   const replayed = await OrderModel.findOne({ checkoutId }).exec();
   if (replayed) {
     if (replayed.user.toString() !== user._id.toString()) {
@@ -234,6 +324,11 @@ export const createOrder = async (
     }
     return toOrderDto(replayed);
   }
+
+  if (input.paymentMethod !== 'cod') {
+    await assertPaymentIndexReadyForManualOperations();
+  }
+  const provider = getPaymentProvider(input.paymentMethod);
 
   const cart = await CartModel.findOne({ user: user._id }).exec();
   if (!cart || cart.items.length === 0) {
@@ -312,6 +407,24 @@ export const createOrder = async (
                 shippingAddress,
                 paymentMethod: provider.method,
                 paymentStatus: provider.initialPaymentStatus(),
+                payment: {
+                  provider: provider.provider,
+                  senderNumber: null,
+                  trxId: null,
+                  trxIdNormalized: null,
+                  submittedAt: null,
+                  verifiedBy: null,
+                  verifiedAt: null,
+                  rejectionReason: null,
+                  refundedBy: null,
+                  refundedAt: null,
+                  refundReference: null,
+                  refundAmount: null,
+                  refundRecipient: null,
+                  refundNote: null,
+                  claims: [],
+                  verificationHistory: [],
+                },
                 subtotal,
                 shippingFee,
                 total,
@@ -401,7 +514,7 @@ export const listOrders = async (
   ]);
 
   return {
-    items: orders.map(toOrderDto),
+    items: orders.map((order) => toOrderDto(order)),
     page: query.page,
     limit: query.limit,
     total,
@@ -432,23 +545,69 @@ export const cancelOrder = async (user: UserDocument, orderId: string): Promise<
 
   try {
     await session.withTransaction(async () => {
+      const current = await OrderModel.findOne({ _id: orderId, user: user._id })
+        .session(session)
+        .exec();
+      if (!current) {
+        throw new AppError(404, 'NOT_FOUND', 'Order not found');
+      }
+      if (current.paymentStatus === 'pending_verification') {
+        throw new AppError(
+          409,
+          'PAYMENT_REVIEW_IN_PROGRESS',
+          'A payment is being verified for this order. Contact support to cancel or correct it.',
+        );
+      }
+
+      const nextPaymentStatus = paymentStatusAfterCancellation(
+        current.paymentMethod,
+        current.paymentStatus,
+      );
+      if (nextPaymentStatus === null) {
+        throw new AppError(409, 'PAYMENT_REVIEW_IN_PROGRESS', 'Payment review is in progress');
+      }
+
+      const now = new Date();
       const updated = await OrderModel.findOneAndUpdate(
-        { _id: orderId, user: user._id, status: { $in: ['pending', 'processing'] }, stockRestored: { $ne: true } },
         {
-          $set: { status: 'cancelled', stockRestored: true },
-          $push: { statusHistory: { status: 'cancelled', at: new Date() } },
+          _id: orderId,
+          user: user._id,
+          status: { $in: ['pending', 'processing'] },
+          stockRestored: { $ne: true },
+          ...paymentStatusFilter(current.paymentStatus),
+        },
+        {
+          $set: {
+            status: 'cancelled',
+            stockRestored: true,
+            ...(nextPaymentStatus !== current.paymentStatus
+              ? { paymentStatus: nextPaymentStatus }
+              : {}),
+          },
+          $push: {
+            statusHistory: { status: 'cancelled', at: now },
+            ...(nextPaymentStatus !== current.paymentStatus
+              ? {
+                  'payment.verificationHistory': {
+                    action: 'cancelled',
+                    at: now,
+                    actor: 'customer',
+                    by: user._id,
+                    reason: null,
+                  },
+                }
+              : {}),
+          },
         },
         { returnDocument: 'after', session },
       ).exec();
 
       if (!updated) {
-        const exists = await OrderModel.findOne({ _id: orderId, user: user._id })
-          .session(session)
-          .exec();
-        if (!exists) {
-          throw new AppError(404, 'NOT_FOUND', 'Order not found');
-        }
-        throw new AppError(409, 'CONFLICT', 'Only pending or processing orders can be cancelled. This order may already have shipped or been cancelled.');
+        throw new AppError(
+          409,
+          'CONFLICT',
+          'Only pending or processing orders can be cancelled. This order may already have shipped or been cancelled.',
+        );
       }
 
       // Only the winner of the guarded transition above restores stock. A
@@ -469,6 +628,19 @@ export const cancelOrder = async (user: UserDocument, orderId: string): Promise<
         }
       }
 
+      if (nextPaymentStatus === 'refund_pending') {
+        await enqueueNotification(
+          {
+            user: updated.user,
+            order: updated._id,
+            orderNumber: updated.orderNumber,
+            type: 'payment_refund_pending',
+            message: `Order ${updated.orderNumber} was cancelled after payment. A manual refund is pending.`,
+          },
+          session,
+        );
+      }
+
       result.cancelled = toOrderDto(updated);
     });
   } finally {
@@ -478,6 +650,7 @@ export const cancelOrder = async (user: UserDocument, orderId: string): Promise<
   if (!result.cancelled) {
     throw new AppError(409, 'CONFLICT', 'Order cannot be cancelled');
   }
+  deliverNotifications();
   return result.cancelled;
 };
 

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
+import { PaymentStatusBadge } from '@/components/orders/PaymentStatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Pagination } from '@/components/ui/Pagination';
@@ -12,10 +13,33 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { adminApi } from '@/lib/api/admin';
 import { ApiError } from '@/lib/api/client';
-import type { ListEnvelope, OrderDto, OrderStatus } from '@/lib/types';
+import type {
+  ListEnvelope,
+  OrderDto,
+  OrderStatus,
+  PaymentMethod,
+  PaymentStatus,
+} from '@/lib/types';
 import { cn } from '@/lib/utils/cn';
 
 const STATUSES: OrderStatus[] = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+const PAYMENT_STATUSES: PaymentStatus[] = [
+  'unpaid',
+  'awaiting_payment',
+  'pending_verification',
+  'paid',
+  'rejected',
+  'refund_pending',
+  'refunded',
+  'cancelled',
+];
+const PAYMENT_METHODS: PaymentMethod[] = ['cod', 'bkash', 'nagad', 'rocket'];
+const PAYMENT_LABELS: Record<PaymentMethod, string> = {
+  cod: 'Cash on Delivery',
+  bkash: 'bKash',
+  nagad: 'Nagad',
+  rocket: 'Rocket',
+};
 
 type ListState =
   | { status: 'loading' }
@@ -35,6 +59,8 @@ export function AdminOrders() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | OrderStatus>('');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<'' | PaymentStatus>('');
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<'' | PaymentMethod>('');
   const [page, setPage] = useState(1);
   const [state, setState] = useState<ListState>({ status: 'loading' });
   const [reloadKey, setReloadKey] = useState(0);
@@ -48,6 +74,8 @@ export function AdminOrders() {
         const data = await adminApi.listOrders({
           search: search || undefined,
           status: statusFilter || undefined,
+          paymentStatus: paymentStatusFilter || undefined,
+          paymentMethod: paymentMethodFilter || undefined,
           page,
           limit: 10,
         });
@@ -66,7 +94,7 @@ export function AdminOrders() {
     return () => {
       cancelled = true;
     };
-  }, [statusFilter, page, reloadKey, search]);
+  }, [statusFilter, paymentStatusFilter, paymentMethodFilter, page, reloadKey, search]);
 
   return (
     <div className="space-y-5">
@@ -82,7 +110,7 @@ export function AdminOrders() {
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="admin-order-status" className="text-sm font-medium text-ink">
-            Status
+            Fulfilment status
           </label>
           <select
             id="admin-order-status"
@@ -101,6 +129,76 @@ export function AdminOrders() {
             ))}
           </select>
         </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="admin-payment-status" className="text-sm font-medium text-ink">
+            Payment status
+          </label>
+          <select
+            id="admin-payment-status"
+            value={paymentStatusFilter}
+            onChange={(event) => {
+              setPage(1);
+              setPaymentStatusFilter(event.target.value as '' | PaymentStatus);
+            }}
+            className="h-11 w-48 rounded-xl border border-line bg-surface px-3 text-sm text-ink focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            <option value="">All payment statuses</option>
+            {PAYMENT_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {status.replace(/_/g, ' ')}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="admin-payment-method" className="text-sm font-medium text-ink">
+            Payment method
+          </label>
+          <select
+            id="admin-payment-method"
+            value={paymentMethodFilter}
+            onChange={(event) => {
+              setPage(1);
+              setPaymentMethodFilter(event.target.value as '' | PaymentMethod);
+            }}
+            className="h-11 w-44 rounded-xl border border-line bg-surface px-3 text-sm text-ink focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            <option value="">All methods</option>
+            {PAYMENT_METHODS.map((method) => (
+              <option key={method} value={method}>
+                {PAYMENT_LABELS[method]}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <Button
+          type="button"
+          variant="secondary"
+          className="min-h-11"
+          onClick={() => {
+            setPage(1);
+            setPaymentStatusFilter('pending_verification');
+            setStatusFilter('');
+          }}
+        >
+          Pending payment queue
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="min-h-11"
+          onClick={() => {
+            setPage(1);
+            setStatusFilter('');
+            setPaymentStatusFilter('');
+            setPaymentMethodFilter('');
+          }}
+        >
+          Reset filters
+        </Button>
       </div>
 
       {state.status === 'loading' ? (
@@ -140,9 +238,14 @@ export function AdminOrders() {
                     </p>
                     <p className="text-xs font-medium text-ink">{order.shippingAddress.phone}</p>
                     <p className="text-xs text-muted">{order.shippingAddress.fullName}</p>
+                    <p className="mt-1 text-xs text-muted">
+                      {PAYMENT_LABELS[order.paymentMethod]} ·{' '}
+                      {order.paymentStatus.replace(/_/g, ' ')}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     <OrderStatusBadge status={order.status} />
+                    <PaymentStatusBadge status={order.paymentStatus} />
                     <span className="text-sm font-semibold text-ink">
                       <Price poisha={order.total} />
                     </span>

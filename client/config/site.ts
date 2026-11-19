@@ -91,6 +91,12 @@ export const site = {
       'You pay cash to the delivery person when the order arrives.',
       'You can cancel this order while it is pending or processing, before shipment.',
     ],
+    manualPaymentTitle: 'Order placed — complete your payment.',
+    manualPaymentNext: [
+      'Send the exact payable total to the receiving number shown on this page.',
+      'Submit the sender wallet number and transaction ID so we can verify the payment.',
+      'We verify the payment against our receiving account before dispatch.',
+    ],
   },
 
   /** Home section headings and "View all" links. */

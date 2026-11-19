@@ -61,6 +61,10 @@ mongosh --port 27018 --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.
 | B2 — first-cart upsert race, per-user isolation, duplicate-key policy | `order-integrity.test.ts` |
 | B3 — archived/unpublished/out-of-stock/priceless/invalid-quantity lines, valid COD order | `order-integrity.test.ts` |
 | R1/R4 — restore identity/history/races/auth, both cancellation paths, HTTP checkout 409s | `order-integrity.test.ts` |
+| Phase 2 — manual order/proof/admin review, refund evidence, prepaid fulfilment gates, outbox concurrency | `manual-payments.test.ts` |
+| Phase 2 — payment index startup/runtime/reconnection readiness and COD-only behavior | `payment-index-readiness.test.ts` |
+| Phase 2 — payment validation, index metadata rules, provider config | `payment-unit.test.ts` |
+| Payment index startup failure/auto-index policy | `db-connect.test.ts` |
 
 `MONGODB_STANDALONE_URI` is optional; when set, the A1 guard test proves that a plain `mongod`
 (no `--replSet`) is refused at startup. Start one alongside the replica set:

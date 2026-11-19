@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
-import { CopyButton } from '@/components/admin/CopyButton';
+import { ManualPaymentReview } from '@/components/admin/ManualPaymentReview';
+import { CopyButton } from '@/components/ui/CopyButton';
 import { ProductImage } from '@/components/catalog/ProductCard';
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
 import { Button } from '@/components/ui/Button';
@@ -12,7 +13,18 @@ import { Price } from '@/components/ui/Price';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { adminApi } from '@/lib/api/admin';
 import { ApiError } from '@/lib/api/client';
-import type { AdminOrderDetail as AdminOrderDetailData, OrderStatus } from '@/lib/types';
+import type {
+  AdminOrderDetail as AdminOrderDetailData,
+  OrderStatus,
+  PaymentMethod,
+} from '@/lib/types';
+
+const PAYMENT_LABELS: Record<PaymentMethod, string> = {
+  cod: 'Cash on Delivery',
+  bkash: 'bKash',
+  nagad: 'Nagad',
+  rocket: 'Rocket',
+};
 
 const NEXT_STEPS: Record<
   OrderStatus,
@@ -91,7 +103,9 @@ export function AdminOrderDetail({ orderId }: { orderId: string }) {
           tone: 'success',
           message:
             status === 'cancelled'
-              ? 'Order cancelled. Reserved stock has been restored.'
+              ? order.paymentStatus === 'paid'
+                ? 'Order cancelled. Reserved stock has been restored and a manual refund is now pending.'
+                : 'Order cancelled. Reserved stock has been restored.'
               : `Order status updated to “${status}”.`,
         });
       } catch (error) {
@@ -128,7 +142,13 @@ export function AdminOrderDetail({ orderId }: { orderId: string }) {
   }
 
   const { order, customer } = state.data;
-  const steps = NEXT_STEPS[order.status];
+  const prepaidUnpaid = order.paymentMethod !== 'cod' && order.paymentStatus !== 'paid';
+  const paymentReviewPending = order.paymentStatus === 'pending_verification';
+  const steps = prepaidUnpaid
+    ? NEXT_STEPS[order.status].filter(
+        (step) => step.status === 'cancelled' && !paymentReviewPending,
+      )
+    : NEXT_STEPS[order.status];
   const shipping = order.shippingAddress;
   const addressText = [
     shipping.line1,
@@ -146,11 +166,27 @@ export function AdminOrderDetail({ orderId }: { orderId: string }) {
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Order {order.orderNumber}</h1>
         <OrderStatusBadge status={order.status} />
         <span className="text-xs text-muted">
-          {formatDate(order.createdAt)} · Cash on Delivery ({order.paymentStatus})
+          {formatDate(order.createdAt)} · {PAYMENT_LABELS[order.paymentMethod]} ·{' '}
+          {order.paymentStatus.replace(/_/g, ' ')}
         </span>
       </header>
 
       {notice ? <Notice tone={notice.tone}>{notice.message}</Notice> : null}
+
+      {order.paymentMethod !== 'cod' ? (
+        <ManualPaymentReview
+          order={order}
+          onOrderChange={(updated) =>
+            setState((previous) =>
+              previous.status === 'success'
+                ? { status: 'success', data: { ...previous.data, order: updated } }
+                : previous,
+            )
+          }
+          onNotice={setNotice}
+          onRefresh={() => setReloadKey((key) => key + 1)}
+        />
+      ) : null}
 
       <section aria-labelledby="customer-heading" className="rounded-2xl border border-line bg-surface p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -244,11 +280,24 @@ export function AdminOrderDetail({ orderId }: { orderId: string }) {
         <h2 id="admin-status-heading" className="text-base font-semibold text-ink">
           Status
         </h2>
+        {prepaidUnpaid && order.status !== 'cancelled' && order.status !== 'delivered' ? (
+          <Notice tone="info" className="mt-2">
+            {paymentReviewPending
+              ? 'Payment verification is in progress. Fulfilment and cancellation actions are unavailable until the claim is resolved.'
+              : 'Payment must be verified before processing, shipping or delivery. You can cancel this unpaid order while it is pending or processing.'}
+          </Notice>
+        ) : null}
         {steps.length === 0 ? (
           <p className="mt-2 text-sm text-muted">
-            {order.status === 'delivered'
-              ? 'This order is delivered — no further transitions.'
-              : 'This order is cancelled — no further transitions.'}
+            {paymentReviewPending
+              ? 'No fulfilment actions until payment verification is resolved.'
+              : order.status === 'delivered'
+                ? 'This order is delivered — no further transitions.'
+                : order.status === 'cancelled'
+                  ? 'This order is cancelled — no further transitions.'
+                  : prepaidUnpaid
+                    ? 'Payment must be verified before the remaining fulfilment steps.'
+                    : 'No further transitions.'}
           </p>
         ) : (
           <>
@@ -300,7 +349,11 @@ export function AdminOrderDetail({ orderId }: { orderId: string }) {
       <ConfirmDialog
         open={cancelOpen}
         title="Cancel this order?"
-        message="Stock reserved by this order will be restored. This cannot be undone."
+        message={
+          order.paymentStatus === 'paid'
+            ? 'Stock reserved by this order will be restored and a manual refund will be required. No automatic refund is issued. This cannot be undone.'
+            : 'Stock reserved by this order will be restored. This cannot be undone.'
+        }
         confirmLabel="Yes, cancel order"
         busy={busy}
         onConfirm={() => transition('cancelled')}
