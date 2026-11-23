@@ -305,8 +305,11 @@ describe('Phase 2 payment browser regressions', () => {
     );
     const { page } = await fixture(t, { order: refunded, methods: disabledMethods });
     await page.goto(new URL(`/orders/${refunded.id}`, base).href);
-    await page.getByText('The manual refund for this order is marked complete.', { exact: false }).waitFor();
-    await page.getByText('REF-UI-1', { exact: false }).waitFor();
+    const refundNotice = page
+      .getByRole('status')
+      .filter({ hasText: 'The manual refund for this order is marked complete.' });
+    await refundNotice.waitFor();
+    await refundNotice.getByText('REF-UI-1', { exact: false }).waitFor();
     await page.getByText('Payment history', { exact: true }).waitFor();
     assert.equal(await page.getByText('Refund pending', { exact: true }).count(), 0);
   });
