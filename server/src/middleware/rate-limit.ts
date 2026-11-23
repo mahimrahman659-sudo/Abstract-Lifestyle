@@ -1,6 +1,7 @@
 import { rateLimit } from 'express-rate-limit';
 import type { Request } from 'express';
 import { env } from '../config/env.js';
+import { resolveEventIdentity } from '../services/activity.service.js';
 
 /** Rate limiter for credential endpoints (login/register): 10 attempts per 15 minutes per IP. */
 export const authRateLimiter = rateLimit({
@@ -58,5 +59,24 @@ export const uploadRateLimiter = perMinuteLimiter(
   env.UPLOAD_RATE_LIMIT_PER_MIN,
   'Too many uploads. Please wait a minute and try again.',
   userOrIpKey,
+);
+
+/**
+ * Activity-event ingest limiter — per verified identity, falling back to IP.
+ * Runs BEFORE validation and auth, so it resolves the identity itself from
+ * the signed cookie (forged/absent cookies degrade to the IP key; they can
+ * never claim another identity's budget — or forge a fresh one cheaply,
+ * because an invalid cookie always maps to the same IP key).
+ */
+const eventIdentityKey = (req: Request): string => {
+  const { userId } = resolveEventIdentity(req);
+  return userId ? `user:${userId.toString()}` : `ip:${req.ip ?? 'unknown'}`;
+};
+
+/** Client event ingestion: 60 requests/minute per identity (or per IP). */
+export const eventRateLimiter = perMinuteLimiter(
+  env.ACTIVITY_EVENTS_RATE_LIMIT_PER_MIN,
+  'Too many events. Please wait a minute and try again.',
+  eventIdentityKey,
 );
 

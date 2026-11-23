@@ -34,6 +34,14 @@ const envSchema = z
     ORDER_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(30),
     /** Per-user upload limit (requests per minute). */
     UPLOAD_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(20),
+    /**
+     * Customer Activity Center (Phase 1A). Ships disabled: when false the
+     * event endpoint persists nothing and the server never writes events.
+     * Only `"true"` enables it (see envBoolean).
+     */
+    ACTIVITY_EVENTS_ENABLED: envBoolean,
+    /** Per-identity (or per-IP) event ingest limit (requests per minute). */
+    ACTIVITY_EVENTS_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(60),
     /** Cloudinary credentials — required in production, optional in development. */
     CLOUDINARY_CLOUD_NAME: z.string().trim().default(''),
     CLOUDINARY_API_KEY: z.string().trim().default(''),
