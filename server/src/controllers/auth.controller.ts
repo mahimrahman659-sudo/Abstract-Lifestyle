@@ -4,6 +4,7 @@ import { AUTH_COOKIE_NAME, getAuthUser } from '../middleware/auth.js';
 import { loginUser, loginWithGoogle, registerUser } from '../services/auth.service.js';
 import { toUserDto } from '../services/user.service.js';
 import { AUTH_TOKEN_TTL_MS, signAuthToken } from '../utils/jwt.js';
+import { emitServerEvent, resolveEventIdentity } from '../services/activity.service.js';
 
 const authCookieOptions = (): CookieOptions => ({
   httpOnly: true,
@@ -17,6 +18,7 @@ export const register: RequestHandler = async (req, res) => {
   const user = await registerUser(req.body);
 
   res.cookie(AUTH_COOKIE_NAME, signAuthToken(user._id.toString(), user.role), authCookieOptions());
+  emitServerEvent({ type: 'auth.register', userId: user._id });
   res.status(201).json({ user: toUserDto(user) });
 };
 
@@ -24,6 +26,7 @@ export const login: RequestHandler = async (req, res) => {
   const user = await loginUser(req.body);
 
   res.cookie(AUTH_COOKIE_NAME, signAuthToken(user._id.toString(), user.role), authCookieOptions());
+  emitServerEvent({ type: 'auth.login', userId: user._id });
   res.status(200).json({ user: toUserDto(user) });
 };
 
@@ -36,12 +39,19 @@ export const googleLogin: RequestHandler = async (req, res) => {
   const user = await loginWithGoogle(req.body.credential);
 
   res.cookie(AUTH_COOKIE_NAME, signAuthToken(user._id.toString(), user.role), authCookieOptions());
+  emitServerEvent({ type: 'auth.google_login', userId: user._id });
   res.status(200).json({ user: toUserDto(user) });
 };
 
-export const logout: RequestHandler = (_req, res) => {
+export const logout: RequestHandler = (req, res) => {
   const { maxAge: _maxAge, ...clearOptions } = authCookieOptions();
   res.clearCookie(AUTH_COOKIE_NAME, clearOptions);
+  // Only a verifiable session produces an event — anonymous POSTs to this
+  // route are ignored so the endpoint cannot be spammed into the feed.
+  const { userId } = resolveEventIdentity(req);
+  if (userId) {
+    emitServerEvent({ type: 'auth.logout', userId });
+  }
   res.status(204).end();
 };
 

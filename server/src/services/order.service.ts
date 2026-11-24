@@ -21,6 +21,8 @@ import { paymentStatusAfterCancellation, paymentStatusFilter } from '../utils/pa
 import { assertPaymentIndexReadyForManualOperations } from '../config/payment-index.js';
 import { getPaymentProvider } from './payment.service.js';
 import { deliverNotifications, enqueueNotification } from './notification.service.js';
+import { emitServerEvent } from './activity.service.js';
+import { deterministicEventId } from '../utils/event-id.js';
 
 export interface OrderPaymentDto {
   provider: 'cod' | 'manual';
@@ -359,6 +361,17 @@ export const createOrder = async (
   // Version the claim was taken on — the final clear compare-and-swaps on it.
   const claimedVersion = claimed.version;
 
+  // Intent marker: emitted only AFTER the claim succeeded (never on the
+  // failure paths above). It records checkout start, not completion — a
+  // failed transaction afterwards simply leaves a started-without-purchase
+  // trace. Deterministic id: claim retries of the same checkoutId dedup.
+  emitServerEvent({
+    type: 'checkout.started',
+    eventId: deterministicEventId(`checkout.started:${checkoutId}`),
+    userId: user._id,
+    quantity: cart.items.length,
+  });
+
   // Stock decrements, order creation and cart clearing happen in ONE
   // transaction: any failure aborts everything automatically, so no manual
   // compensating rollback is needed.
@@ -485,6 +498,19 @@ export const createOrder = async (
     if (!committed) {
       throw new AppError(500, 'SERVER_ERROR', 'Failed to create order');
     }
+
+    // Authoritative purchase event: ONLY after withTransaction committed and
+    // only on the success path (the replay/race returns above never reach
+    // here). Fire-and-forget — analytics failure cannot block checkout, and
+    // official revenue reporting always reads `orders`, never this event.
+    emitServerEvent({
+      type: 'order.purchased',
+      eventId: deterministicEventId(`order.purchased:${committed._id.toString()}`),
+      userId: user._id,
+      orderId: committed._id,
+      value: committed.total,
+      quantity: committed.items.length,
+    });
 
     await provider.onOrderPlaced(committed);
     return toOrderDto(committed);
@@ -650,6 +676,14 @@ export const cancelOrder = async (user: UserDocument, orderId: string): Promise<
   if (!result.cancelled) {
     throw new AppError(409, 'CONFLICT', 'Order cannot be cancelled');
   }
+  // Success path only (transaction committed, stock restored). Deterministic
+  // id: a retried cancellation collapses to one event.
+  emitServerEvent({
+    type: 'order.cancelled',
+    eventId: deterministicEventId(`order.cancelled:${orderId}`),
+    userId: user._id,
+    orderId,
+  });
   deliverNotifications();
   return result.cancelled;
 };

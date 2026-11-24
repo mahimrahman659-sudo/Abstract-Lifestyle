@@ -12,6 +12,7 @@ import { ProductModel, type Product } from '../models/product.model.js';
 import { VariantModel, type Variant } from '../models/variant.model.js';
 import { mergeCartItemSchema, type MergeCartItemInput } from '../schemas/cart.schema.js';
 import { firstImageUrl } from '../utils/images.js';
+import { emitServerEvent } from './activity.service.js';
 
 export interface CartItemView {
   variantId: string;
@@ -253,6 +254,15 @@ export const addItem = async (
     return [...items, { variant: variant._id, quantity: targetQuantity }];
   });
 
+  // Post-mutation, success path only — analytics can never block the cart.
+  const line = updated.items.find((item) => item.variant.toString() === variantId);
+  emitServerEvent({
+    type: 'cart.add',
+    userId,
+    productId: variant.product.toString(),
+    variantId,
+    ...(line ? { quantity: line.quantity } : {}),
+  });
   return buildCartView(updated);
 };
 
@@ -279,6 +289,14 @@ export const updateItem = async (
     return items;
   });
 
+  const line = updated.items.find((item) => item.variant.toString() === variantId);
+  emitServerEvent({
+    type: 'cart.update',
+    userId,
+    productId: variant.product.toString(),
+    variantId,
+    ...(line ? { quantity: line.quantity } : {}),
+  });
   return buildCartView(updated);
 };
 
@@ -286,11 +304,13 @@ export const removeItem = async (userId: Types.ObjectId, variantId: string): Pro
   const updated = await mutateCart(userId, (items) =>
     items.filter((item) => item.variant.toString() !== variantId),
   );
+  emitServerEvent({ type: 'cart.remove', userId, variantId });
   return buildCartView(updated);
 };
 
 export const clearCart = async (userId: Types.ObjectId): Promise<CartView> => {
   const updated = await mutateCart(userId, () => []);
+  emitServerEvent({ type: 'cart.clear', userId });
   return buildCartView(updated);
 };
 
@@ -335,6 +355,9 @@ export const mergeGuestItems = async (
     return items;
   });
 
+  if (additions.length > 0) {
+    emitServerEvent({ type: 'cart.merge', userId });
+  }
   return buildCartView(updated);
 };
 

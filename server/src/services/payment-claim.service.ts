@@ -21,6 +21,8 @@ import { isValidTrxId, normalizeSenderNumber, normalizeTrxId, PAYMENT_METHOD_LAB
 import { normalizeBdMobile } from '../utils/phone.js';
 import { deliverNotifications, enqueueNotification } from './notification.service.js';
 import { toOrderDto, type OrderDto } from './order.service.js';
+import { emitServerEvent } from './activity.service.js';
+import { deterministicEventId } from '../utils/event-id.js';
 
 const isDuplicateKeyError = (error: unknown): boolean =>
   typeof error === 'object' &&
@@ -119,7 +121,10 @@ export const submitManualPayment = async (
   }
 
   const session = await mongoose.startSession();
-  const result: { order: OrderDto | null } = { order: null };
+  const result: { order: OrderDto | null; freshClaimId: string | null } = {
+    order: null,
+    freshClaimId: null,
+  };
 
   try {
     try {
@@ -220,6 +225,9 @@ export const submitManualPayment = async (
           session,
         );
 
+        // Only a NEWLY created claim produces an event; idempotent replays
+        // of an identical pending claim (early returns above) do not.
+        result.freshClaimId = claimId.toString();
         result.order = toOrderDto(updated);
       });
     } catch (error) {
@@ -238,6 +246,16 @@ export const submitManualPayment = async (
 
   if (!result.order) {
     throw new AppError(409, 'PAYMENT_CLAIM_CONFLICT', 'Payment submission did not complete.');
+  }
+  // Post-commit success path only. NO transaction reference or sender number
+  // is ever copied into analytics — ids and outcome enums only.
+  if (result.freshClaimId) {
+    emitServerEvent({
+      type: 'payment.claim_submitted',
+      eventId: deterministicEventId(`payment.claim.submitted:${result.freshClaimId}`),
+      userId: user._id,
+      orderId,
+    });
   }
   deliverNotifications();
   return result.order;
@@ -263,7 +281,11 @@ export const reviewManualPayment = async (
   await assertPaymentIndexReadyForManualOperations();
 
   const session = await mongoose.startSession();
-  const result: { order: OrderDto | null } = { order: null };
+  const result: {
+    order: OrderDto | null;
+    claimId: string | null;
+    decision: 'paid' | 'rejected' | null;
+  } = { order: null, claimId: null, decision: null };
 
   try {
     await session.withTransaction(async () => {
@@ -357,6 +379,8 @@ export const reviewManualPayment = async (
       );
 
       result.order = toOrderDto(updated, { includeInternal: true });
+      result.claimId = claim._id ? claim._id.toString() : null;
+      result.decision = approved ? 'paid' : 'rejected';
     });
   } finally {
     await session.endSession();
@@ -364,6 +388,18 @@ export const reviewManualPayment = async (
 
   if (!result.order) {
     throw new AppError(409, 'PAYMENT_CLAIM_NOT_PENDING', 'Payment review did not complete.');
+  }
+  // Post-commit success path only. NO rejection reason, sender number or
+  // transaction reference is copied — ids + decision enum only. The
+  // authoritative verification trail stays in orders.payment.verificationHistory.
+  if (result.claimId && result.decision) {
+    emitServerEvent({
+      type: 'payment.claim_reviewed',
+      eventId: deterministicEventId(`payment.claim.reviewed:${result.claimId}`),
+      userId: admin._id,
+      orderId,
+      decision: result.decision,
+    });
   }
   deliverNotifications();
   return result.order;
@@ -446,7 +482,7 @@ export const completeManualRefund = async (
   }
 
   const session = await mongoose.startSession();
-  const result: { order: OrderDto | null } = { order: null };
+  const result: { order: OrderDto | null; fresh: boolean } = { order: null, fresh: false };
 
   try {
     await session.withTransaction(async () => {
@@ -546,6 +582,9 @@ export const completeManualRefund = async (
       );
 
       result.order = toOrderDto(updated, { includeInternal: true });
+      // Only the FIRST completion emits; idempotent replays of the same
+      // evidence (early returns above) stay silent.
+      result.fresh = true;
     });
   } finally {
     await session.endSession();
@@ -553,6 +592,17 @@ export const completeManualRefund = async (
 
   if (!result.order) {
     throw new AppError(409, 'REFUND_NOT_PENDING', 'Refund completion did not complete.');
+  }
+  // Post-commit success path only. The refund reference, amount and
+  // recipient are NEVER copied into analytics — ids only; the authoritative
+  // financial record stays on the order document.
+  if (result.fresh) {
+    emitServerEvent({
+      type: 'payment.refunded',
+      eventId: deterministicEventId(`payment.refunded:${orderId}`),
+      userId: admin._id,
+      orderId,
+    });
   }
   deliverNotifications();
   return result.order;

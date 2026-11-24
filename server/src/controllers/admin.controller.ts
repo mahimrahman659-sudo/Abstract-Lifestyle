@@ -124,6 +124,7 @@ import {
   adminListCustomers,
 } from '../services/admin-customer.service.js';
 import { getAuthUser } from '../middleware/auth.js';
+import { emitServerEvent } from '../services/activity.service.js';
 import {
   adminCustomerQuerySchema,
   adminOrderQuerySchema,
@@ -198,7 +199,17 @@ export const adminListCustomersHandler: RequestHandler = async (req, res) => {
 
 export const adminGetCustomerHandler: RequestHandler = async (req, res) => {
   const { id } = adminIdParamsSchema.parse(req.params);
-  res.status(200).json(await adminGetCustomer(id));
+  const admin = getAuthUser(req);
+  const payload = await adminGetCustomer(id);
+  // Customer-data access audit (Phase 1B-C): every identifiable customer
+  // detail view is recorded BEFORE Phase 2 ships customer timelines.
+  // Emitted after the read succeeded; fire-and-forget, never blocks the API.
+  emitServerEvent({
+    type: 'admin.customer_viewed',
+    userId: admin._id,
+    customerId: payload.user.id,
+  });
+  res.status(200).json(payload);
 };
 
 // Site images (storefront marketing slots)

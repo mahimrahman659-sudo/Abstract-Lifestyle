@@ -8,6 +8,8 @@ import { toOrderDto, type OrderDto, type OrderListResult } from './order.service
 import { normalizeBdMobile } from '../utils/phone.js';
 import { paymentStatusAfterCancellation, paymentStatusFilter } from '../utils/payment.js';
 import { deliverNotifications, enqueueNotification } from './notification.service.js';
+import { emitServerEvent } from './activity.service.js';
+import { deterministicEventId } from '../utils/event-id.js';
 
 const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   pending: ['processing', 'cancelled'],
@@ -81,7 +83,10 @@ export const adminUpdateOrderStatus = async (
 ): Promise<OrderDto> => {
   const target = input.status;
   const session = await mongoose.startSession();
-  const result: { updated: OrderDto | null } = { updated: null };
+  const result: { updated: OrderDto | null; from: OrderStatus | null } = {
+    updated: null,
+    from: null,
+  };
 
   try {
     await session.withTransaction(async () => {
@@ -169,6 +174,8 @@ export const adminUpdateOrderStatus = async (
       if (!updated) {
         throw new AppError(409, 'CONFLICT', 'Order was modified concurrently');
       }
+      // Captured for the post-commit analytics event (from → to).
+      result.from = order.status;
 
       if (target === 'cancelled' && nextPaymentStatus === 'refund_pending') {
         await enqueueNotification(
@@ -211,6 +218,28 @@ export const adminUpdateOrderStatus = async (
 
   if (!result.updated) {
     throw new AppError(409, 'CONFLICT', 'Order was modified concurrently');
+  }
+  // Post-commit, success path only. Cancellations are recorded as the
+  // canonical `order.cancelled` fact (actor = admin userId); every other
+  // admin transition as `admin.order_status_changed` — never both for one
+  // action, so the feed cannot double-count. Retries are blocked by the
+  // state machine (ALLOWED_TRANSITIONS), so a random v4 id is safe here;
+  // no deterministic identifier exists for a repeatable transition.
+  if (target === 'cancelled') {
+    emitServerEvent({
+      type: 'order.cancelled',
+      eventId: deterministicEventId(`order.cancelled:${orderId}`),
+      userId: admin._id,
+      orderId,
+    });
+  } else {
+    emitServerEvent({
+      type: 'admin.order_status_changed',
+      userId: admin._id,
+      orderId,
+      ...(result.from ? { fromStatus: result.from } : {}),
+      toStatus: target,
+    });
   }
   deliverNotifications();
   return result.updated;
