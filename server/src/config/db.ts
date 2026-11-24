@@ -5,6 +5,11 @@ import {
   paymentIndexRequirementMessage,
   type PaymentIndexReadiness,
 } from './payment-index.js';
+import {
+  activityIndexRequirementMessage,
+  inspectActivityIndexes,
+  type ActivityIndexReadiness,
+} from './activity-index.js';
 import { isAnyManualProviderEnabled } from './payment.js';
 import {
   readDeploymentCapabilities,
@@ -29,6 +34,8 @@ export interface ConnectOptions {
   inspectCapabilities?: (db: DatabaseHandle) => Promise<DeploymentCapabilities>;
   /** Test seam: substitute the payment-index inspector (failure-injection tests). */
   inspectPaymentIndex?: (db: DatabaseHandle) => Promise<PaymentIndexReadiness>;
+  /** Test seam: substitute the activity-index inspector (failure-injection tests). */
+  inspectActivityIndex?: (db: DatabaseHandle) => Promise<ActivityIndexReadiness>;
 }
 
 type DatabaseHandle = NonNullable<typeof mongoose.connection.db>;
@@ -38,6 +45,7 @@ export const connectDB = async ({
   uri = env.MONGODB_URI,
   inspectCapabilities = readDeploymentCapabilities,
   inspectPaymentIndex = inspectPaymentTrxIdIndex,
+  inspectActivityIndex = inspectActivityIndexes,
 }: ConnectOptions = {}): Promise<void> => {
   // Never let a previous connection's facts leak into this one.
   capabilities = null;
@@ -99,6 +107,28 @@ export const connectDB = async ({
       await mongoose.disconnect().catch(() => undefined);
       capabilities = null;
       throw new Error(paymentIndexRequirementMessage(readiness));
+    }
+  }
+
+  // R-1 fail-closed gate: with activity events enabled the API must never
+  // start (and therefore never accept ingestion) unless every designed
+  // activity index exists with the exact key order, uniqueness and TTL.
+  // Indexes are inspected, never created here.
+  if (env.ACTIVITY_EVENTS_ENABLED) {
+    let activityReadiness: ActivityIndexReadiness;
+    try {
+      activityReadiness = await inspectActivityIndex(db);
+    } catch {
+      activityReadiness = {
+        ready: false,
+        required: true,
+        reason: 'the activity index metadata inspection threw an error',
+      };
+    }
+    if (!activityReadiness.ready) {
+      await mongoose.disconnect().catch(() => undefined);
+      capabilities = null;
+      throw new Error(activityIndexRequirementMessage(activityReadiness));
     }
   }
 

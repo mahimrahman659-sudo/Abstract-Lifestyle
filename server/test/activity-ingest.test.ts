@@ -2,7 +2,7 @@ import './setup-env.js';
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import type { Request } from 'express';
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import jwt from 'jsonwebtoken';
 import {
   connectTestDatabase,
@@ -264,6 +264,25 @@ describe('Phase 1A — activity ingest service (disposable database)', () => {
     assert.equal(normalizeEventPath('#'), undefined);
     assert.equal(normalizeEventPath('/x'.repeat(500))?.length, 200);
 
+    // D-3 hardening: separator normalization + strict allowlist.
+    assert.equal(normalizeEventPath('\\products\\linen'), '/products/linen');
+    assert.equal(normalizeEventPath('//products///linen'), '/products/linen');
+    assert.equal(normalizeEventPath('products/x'), '/products/x');
+    assert.equal(normalizeEventPath('/'), '/');
+    // Non-allowlisted content drops the field instead of persisting.
+    assert.equal(normalizeEventPath('/products/ünïcode'), undefined, 'non-ASCII dropped');
+    assert.equal(normalizeEventPath('/a b'), undefined, 'interior space dropped');
+    assert.equal(
+      normalizeEventPath('/a' + String.fromCharCode(0) + 'b'),
+      undefined,
+      'NUL dropped',
+    );
+    assert.equal(
+      normalizeEventPath('/a' + String.fromCharCode(10) + 'b'),
+      undefined,
+      'newline dropped',
+    );
+
     const events = parseBatch([makeEvent({ path: '/products/a?steal=1' })]);
     await ingestClientEvents(events, CTX_ANONYMOUS);
     const doc = await ActivityEventModel.findOne({}).lean();
@@ -326,5 +345,90 @@ describe('Phase 1A — activity ingest service (disposable database)', () => {
   it('keeps retention TTL at the approved 90-day design value', () => {
     assert.equal(ACTIVITY_EVENT_TTL_SECONDS, 90 * 24 * 60 * 60);
     assert.equal(ACTIVITY_EVENT_TTL_SECONDS, 7_776_000);
+  });
+
+  it('reports only server-confirmed inserts on mixed partial failures (D-2)', async () => {
+    const model = ActivityEventModel as unknown as {
+      insertMany: typeof ActivityEventModel.insertMany;
+    };
+    const original = model.insertMany;
+
+    // Mixed: 1 inserted (confirmed), 1 duplicate, 1 hard failure ⇒ accepted
+    // counts ONLY the confirmed insert; the hard failure is never accepted.
+    model.insertMany = (async () => {
+      const error = new Error('probe: mixed') as Error & {
+        writeErrors: Array<{ code: number }>;
+        result: { insertedCount: number };
+      };
+      error.writeErrors = [{ code: 11000 }, { code: 12345 }];
+      error.result = { insertedCount: 1 };
+      throw error;
+    }) as typeof ActivityEventModel.insertMany;
+    try {
+      const mixed = await ingestClientEvents(parseBatch([makeEvent(), makeEvent()]), CTX_ANONYMOUS);
+      assert.equal(mixed.status, 'failed', 'mixed failure is a failure');
+      assert.equal(mixed.accepted, 1, 'accepted = server-confirmed inserts only');
+      assert.equal(mixed.deduped, 1, 'duplicates still counted as deduped');
+    } finally {
+      model.insertMany = original;
+    }
+
+    // All duplicates ⇒ idempotent stored path with driver-confirmed counts.
+    model.insertMany = (async () => {
+      const error = new Error('probe: all dup') as Error & {
+        writeErrors: Array<{ code: number }>;
+        result: { insertedCount: number };
+      };
+      error.writeErrors = [{ code: 11000 }, { code: 11000 }];
+      error.result = { insertedCount: 0 };
+      throw error;
+    }) as typeof ActivityEventModel.insertMany;
+    try {
+      const dupes = await ingestClientEvents(parseBatch([makeEvent(), makeEvent()]), CTX_ANONYMOUS);
+      assert.equal(dupes.status, 'stored');
+      assert.equal(dupes.accepted, 0, 'zero confirmed inserts ⇒ zero accepted');
+      assert.equal(dupes.deduped, 2);
+    } finally {
+      model.insertMany = original;
+    }
+
+    // Hard failure with NO driver result ⇒ accepted must be 0 (unknown ≠ success).
+    model.insertMany = (async () => {
+      const error = new Error('probe: hard') as Error & {
+        writeErrors: Array<{ code: number }>;
+      };
+      error.writeErrors = [{ code: 12345 }];
+      throw error;
+    }) as typeof ActivityEventModel.insertMany;
+    try {
+      const hard = await ingestClientEvents(parseBatch([makeEvent()]), CTX_ANONYMOUS);
+      assert.equal(hard.status, 'failed');
+      assert.equal(hard.accepted, 0, 'failed inserts are never reported as accepted');
+      assert.equal(hard.deduped, 0);
+    } finally {
+      model.insertMany = original;
+    }
+  });
+
+  it('refuses ingestion while required indexes are missing, then resumes (R-1)', async () => {
+    const db = mongoose.connection.db;
+    assert.ok(db);
+    await ActivityEventModel.collection.drop().catch(() => undefined);
+
+    const refused = await ingestClientEvents(parseBatch([makeEvent()]), CTX_ANONYMOUS);
+    assert.equal(refused.status, 'index_not_ready');
+    assert.equal(refused.accepted, 0);
+    assert.equal(await ActivityEventModel.countDocuments({}), 0);
+
+    // Restore indexes (disposable DB only) and confirm normal operation.
+    const existing = await db.listCollections({ name: 'activity_events' }).toArray();
+    if (existing.length === 0) {
+      await db.createCollection('activity_events');
+    }
+    await ActivityEventModel.syncIndexes();
+    const resumed = await ingestClientEvents(parseBatch([makeEvent()]), CTX_ANONYMOUS);
+    assert.equal(resumed.status, 'stored');
+    assert.equal(resumed.accepted, 1);
+    assert.equal(await ActivityEventModel.countDocuments({}), 1);
   });
 });

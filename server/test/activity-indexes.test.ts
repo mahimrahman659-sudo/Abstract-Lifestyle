@@ -13,6 +13,7 @@ import {
 } from '../src/models/activity-event.model.js';
 import { ingestClientEvents } from '../src/services/activity.service.js';
 import { eventIngestSchema } from '../src/schemas/activity.schema.js';
+import { inspectActivityIndexes } from '../src/config/activity-index.js';
 import { env } from '../src/config/env.js';
 import { makeEvent } from './helpers/activity.js';
 
@@ -46,7 +47,7 @@ const syncActivityIndexes = async (): Promise<void> => {
   await ActivityEventModel.syncIndexes();
 };
 
-describe('Phase 1A — activity indexes, degraded mode and TTL (disposable database)', () => {
+describe('Phase 1B-A — activity indexes, fail-closed ingest and TTL (disposable database)', () => {
   before(async () => {
     await connectTestDatabase();
     setFlag(true);
@@ -61,40 +62,79 @@ describe('Phase 1A — activity indexes, degraded mode and TTL (disposable datab
     await disconnectTestDatabase();
   });
 
-  it('ingests correctly with NO indexes present (degraded mode) and dedups within a batch', async () => {
-    // Simulate a production collection that has not received the Phase 4
-    // index rollout: drop everything, indexes included.
+  it('REFUSES ingestion when indexes are missing (R-1 fail-closed, never degrades uniqueness)', async () => {
+    // Simulate a deployment that never received the index rollout: drop the
+    // collection, indexes included.
     await ActivityEventModel.collection.drop().catch(() => undefined);
 
     const shared = makeEvent();
     const first = await ingestClientEvents(parseOne(shared), CTX);
-    assert.equal(first.status, 'stored', 'ingest must work without indexes');
+    assert.equal(first.status, 'index_not_ready', 'missing indexes ⇒ refused');
+    assert.equal(first.accepted, 0);
+    assert.equal(first.deduped, 0);
+    assert.equal(
+      await ActivityEventModel.countDocuments({}),
+      0,
+      'zero documents persisted without indexes',
+    );
 
-    // Cross-batch duplicates are only collapsed by the unique index —
-    // documented degradation: they are stored until the index exists.
-    const second = await ingestClientEvents(parseOne(shared), CTX);
-    assert.equal(second.status, 'stored');
-    assert.equal(second.accepted, 1, 'no unique index → duplicate is stored');
-    assert.equal(await ActivityEventModel.countDocuments({ eventId: shared.eventId }), 2);
+    // Concurrent duplicate submissions are BOTH refused — event-id uniqueness
+    // can never silently degrade to "both accepted".
+    const [a, b] = await Promise.all([
+      ingestClientEvents(parseOne(shared), CTX),
+      ingestClientEvents(parseOne(shared), CTX),
+    ]);
+    assert.equal(a.status, 'index_not_ready');
+    assert.equal(b.status, 'index_not_ready');
+    assert.equal(await ActivityEventModel.countDocuments({}), 0);
 
-    // In-batch deduplication still works at app level even with no indexes.
+    // In-batch duplicates are irrelevant while refused.
     const batch = eventIngestSchema.parse({
       consent: true,
       events: [makeEvent(), shared, shared],
     }).events;
     const third = await ingestClientEvents(batch, CTX);
-    assert.equal(third.status, 'stored');
-    assert.equal(third.accepted, 2, 'the two unique-in-batch events are stored');
-    assert.equal(third.deduped, 1, 'the in-batch duplicate is collapsed');
-    assert.equal(
-      await ActivityEventModel.countDocuments({ eventId: shared.eventId }),
-      3,
-      'without the unique index, cross-batch duplicates accumulate (documented degradation)',
-    );
+    assert.equal(third.status, 'index_not_ready');
+    assert.equal(await ActivityEventModel.countDocuments({}), 0);
 
-    // Clean the duplicates, then restore the designed indexes for later tests.
-    await ActivityEventModel.deleteMany({});
+    // Restore the designed indexes for the remaining tests in this file.
     await syncActivityIndexes();
+    const restored = await ingestClientEvents(parseOne(shared), CTX);
+    assert.equal(restored.status, 'stored', 'ingest resumes once indexes exist');
+    assert.equal(await ActivityEventModel.countDocuments({}), 1);
+  });
+
+  it('live inspection detects a missing collection, missing index and wrong TTL', async () => {
+    const db = requireDb();
+
+    await ActivityEventModel.collection.drop().catch(() => undefined);
+    const missingCollection = await inspectActivityIndexes(db);
+    assert.equal(missingCollection.ready, false);
+    assert.ok(missingCollection.reason.includes('missing'), missingCollection.reason);
+
+    await syncActivityIndexes();
+    const healthy = await inspectActivityIndexes(db);
+    assert.equal(healthy.ready, true, healthy.reason);
+
+    // Wrong TTL on the live index ⇒ fail closed with the exact mismatch.
+    await db.collection('activity_events').dropIndex('activity_ts_ttl');
+    await db.collection('activity_events').createIndex(
+      { ts: 1 },
+      { expireAfterSeconds: 60, name: 'activity_ts_ttl' },
+    );
+    const wrongTtl = await inspectActivityIndexes(db);
+    assert.equal(wrongTtl.ready, false);
+    assert.ok(wrongTtl.reason.includes('expiry'), wrongTtl.reason);
+    assert.ok(wrongTtl.reason.includes('7776000'), wrongTtl.reason);
+
+    // Restore correct TTL for later tests.
+    await db.collection('activity_events').dropIndex('activity_ts_ttl');
+    await db.collection('activity_events').createIndex(
+      { ts: 1 },
+      { expireAfterSeconds: ACTIVITY_EVENT_TTL_SECONDS, name: 'activity_ts_ttl' },
+    );
+    const recovered = await inspectActivityIndexes(db);
+    assert.equal(recovered.ready, true, recovered.reason);
   });
 
   it('creates every designed index with the expected keys and options', async () => {

@@ -77,8 +77,18 @@ export type ActivityDevice = 'mobile' | 'desktop' | 'tablet';
 /** Retention: 90 days (plan decision D2 recommendation). Applied via TTL index. */
 export const ACTIVITY_EVENT_TTL_SECONDS = 90 * 24 * 60 * 60;
 
+/**
+ * Pinned collection name (mongoose would pluralize `ActivityEvent` to
+ * `activityevents`). Shared with the index-readiness gate.
+ */
+export const ACTIVITY_COLLECTION_NAME = 'activity_events';
+
 export interface ActivityEvent {
-  /** UUID v4 — client-generated dedup key (server-generated for server events). */
+  /**
+   * Dedup key: UUID **v4** for client events and one-off server facts;
+   * deterministic UUID **v5** for retryable business facts (order placed,
+   * cancelled, claim reviewed, …) so retries collapse to one document.
+   */
   eventId: string;
   type: ActivityEventType;
   source: ActivityEventSource;
@@ -95,20 +105,35 @@ export interface ActivityEvent {
   productId?: Types.ObjectId;
   variantId?: Types.ObjectId;
   orderId?: Types.ObjectId;
+  /** Customer viewed by an admin (`admin.customer_viewed` target). */
+  customerId?: Types.ObjectId;
   /** Structured search term (≤100 chars) — never embedded in `path`. */
   query?: string;
   quantity?: number;
-  /** Integer poisha (server events only; Phase 1B). */
+  /** Integer poisha (server events only; e.g. order total). */
   value?: number;
   referrerDomain?: string;
   device?: ActivityDevice;
+  /** Server-only: outcome of `payment.claim_reviewed`. */
+  decision?: 'paid' | 'rejected';
+  /** Server-only: status transition of `admin.order_status_changed`. */
+  fromStatus?: OrderStatusLike;
+  toStatus?: OrderStatusLike;
   createdAt: Date;
 }
 
+/** Order statuses referenced by admin status-change events. */
+export type OrderStatusLike =
+  | 'pending'
+  | 'processing'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled';
+
 export type ActivityEventDocument = HydratedDocument<ActivityEvent>;
 
-const UUID_V4_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[345][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SESSION_ID_PATTERN = /^[A-Za-z0-9-]{8,36}$/;
 
 const activityEventSchema = new Schema<ActivityEvent>(
@@ -116,7 +141,7 @@ const activityEventSchema = new Schema<ActivityEvent>(
     eventId: {
       type: String,
       required: true,
-      match: [UUID_V4_PATTERN, 'eventId must be a UUID v4'],
+      match: [UUID_PATTERN, 'eventId must be a UUID (v3/v4/v5)'],
     },
     type: { type: String, enum: [...ACTIVITY_EVENT_TYPES], required: true },
     source: { type: String, enum: ['client', 'server'], required: true },
@@ -128,11 +153,21 @@ const activityEventSchema = new Schema<ActivityEvent>(
     productId: { type: Schema.Types.ObjectId, ref: 'Product' },
     variantId: { type: Schema.Types.ObjectId, ref: 'Variant' },
     orderId: { type: Schema.Types.ObjectId, ref: 'Order' },
+    customerId: { type: Schema.Types.ObjectId, ref: 'User' },
     query: { type: String, maxlength: 100 },
     quantity: { type: Number, min: 1, max: 999 },
     value: { type: Number, min: 0 },
     referrerDomain: { type: String, maxlength: 100 },
     device: { type: String, enum: ['mobile', 'desktop', 'tablet'] },
+    decision: { type: String, enum: ['paid', 'rejected'] },
+    fromStatus: {
+      type: String,
+      enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
+    },
+    toStatus: {
+      type: String,
+      enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
+    },
   },
   {
     // Events are immutable facts: createdAt only, no updatedAt churn.
@@ -184,5 +219,5 @@ activityEventSchema.index(
 export const ActivityEventModel = model<ActivityEvent>(
   'ActivityEvent',
   activityEventSchema,
-  'activity_events',
+  ACTIVITY_COLLECTION_NAME,
 );

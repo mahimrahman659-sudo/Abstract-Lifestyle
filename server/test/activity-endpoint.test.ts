@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import type { Server } from 'node:http';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import {
   connectTestDatabase,
   disconnectTestDatabase,
@@ -238,5 +238,36 @@ describe('Phase 1A — POST /api/events (HTTP + disposable database)', () => {
     assert.equal(atCap.status, 202);
     assert.equal(await ActivityEventModel.countDocuments({}), 20);
     assert.equal(randomUUID().length, 36, 'sanity: fixture ids are UUIDs');
+  });
+
+  it('answers 503 ACTIVITY_INDEX_UNAVAILABLE when indexes are missing while enabled (R-1)', async () => {
+    await ActivityEventModel.collection.drop().catch(() => undefined);
+
+    const refused = await postEvents(origin, { consent: true, events: makeBatch(1) });
+    assert.equal(refused.status, 503);
+    const envelope = refused.body as { error?: { code?: string } };
+    assert.equal(envelope.error?.code, 'ACTIVITY_INDEX_UNAVAILABLE');
+    assert.equal(await ActivityEventModel.countDocuments({}), 0, 'zero writes while not ready');
+
+    // Concurrent duplicates while not ready are BOTH refused (never accepted).
+    const [a, b] = await Promise.all([
+      postEvents(origin, { consent: true, events: makeBatch(1) }),
+      postEvents(origin, { consent: true, events: makeBatch(1) }),
+    ]);
+    assert.equal(a.status, 503);
+    assert.equal(b.status, 503);
+    assert.equal(await ActivityEventModel.countDocuments({}), 0);
+
+    // Restore the designed indexes (disposable DB only) ⇒ normal 202 again.
+    const db = mongoose.connection.db;
+    assert.ok(db);
+    const existing = await db.listCollections({ name: 'activity_events' }).toArray();
+    if (existing.length === 0) {
+      await db.createCollection('activity_events');
+    }
+    await ActivityEventModel.syncIndexes();
+    const resumed = await postEvents(origin, { consent: true, events: makeBatch(1) });
+    assert.equal(resumed.status, 202);
+    assert.deepEqual(resumed.body, { accepted: 1, deduped: 0 });
   });
 });

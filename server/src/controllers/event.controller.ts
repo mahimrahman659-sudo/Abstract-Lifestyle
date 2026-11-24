@@ -6,13 +6,16 @@ import {
 } from '../services/activity.service.js';
 
 /**
- * POST /api/events — client event ingestion (Phase 1A).
+ * POST /api/events — client event ingestion (Phase 1A/1B-A).
  *
  * Contract:
  * - 202 `{ accepted, deduped }` when the batch was processed (including
- *   storage failures: events are best-effort and never fail the request);
+ *   storage failures: events are best-effort and never fail the request;
+ *   `accepted` only counts server-confirmed inserts — D-2);
  * - 204 no body when the feature flag is off or consent was not granted —
  *   nothing is persisted;
+ * - 503 `ACTIVITY_INDEX_UNAVAILABLE` when enabled but the required indexes
+ *   are missing/mismatched (R-1 fail-closed; also enforced at startup);
  * - 400/429 come from `validateBody` / `eventRateLimiter`.
  *
  * Identity is resolved exclusively from the verified auth cookie; any
@@ -32,12 +35,25 @@ export const createEventsHandler: RequestHandler = async (req, res) => {
       res.status(204).end();
       return;
     }
+    if (result.status === 'index_not_ready') {
+      res.status(503).json({
+        error: {
+          code: 'ACTIVITY_INDEX_UNAVAILABLE',
+          message: 'Activity tracking is temporarily unavailable. Please try again later.',
+        },
+      });
+      return;
+    }
     // `stored` and `failed` both answer 202 with actual counts; storage
     // failures are logged inside the service without payloads.
     res.status(202).json({ accepted: result.accepted, deduped: result.deduped });
-  } catch {
+  } catch (error) {
     // ingestClientEvents is documented never to throw; defensive parity so a
     // future regression still cannot surface as a 500 on this endpoint.
+    // D-1: diagnostics are message-only — never bodies, ids or payloads.
+    const message =
+      error instanceof Error ? error.message.slice(0, 300) : 'unknown handler error';
+    console.error(`[activity] event handler failed: ${message}`);
     res.status(202).json({ accepted: 0, deduped: 0 });
   }
 };

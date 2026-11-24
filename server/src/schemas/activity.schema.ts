@@ -55,7 +55,16 @@ export const clientActivityEventSchema = z
     ts: eventTimeSchema,
     anonymousId: z.string().regex(SESSION_ID_PATTERN, 'invalid anonymousId').optional(),
     sessionId: z.string().regex(SESSION_ID_PATTERN, 'invalid sessionId').optional(),
-    path: z.string().min(1).max(MAX_PATH_LENGTH).optional(),
+    path: z
+      .string()
+      .min(1)
+      .max(MAX_PATH_LENGTH)
+      // D-3: reject control characters at the edge; the service applies the
+      // strict route allowlist during normalization.
+      .refine((value) => !/[\u0000-\u001F\u007F]/.test(value), {
+        message: 'path must not contain control characters',
+      })
+      .optional(),
     productId: objectIdSchema.optional(),
     variantId: objectIdSchema.optional(),
     /** Structured search term — never a URL, never embedded in `path`. */

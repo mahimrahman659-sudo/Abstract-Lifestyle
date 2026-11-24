@@ -165,6 +165,31 @@ describe('Phase 1A — activity event input schema (unit)', () => {
     );
   });
 
+  it('rejects paths containing control characters (D-3 edge validation)', () => {
+    const controlPaths = [
+      '/a' + String.fromCharCode(0) + 'b',
+      '/a' + String.fromCharCode(10) + 'b',
+      '/a' + String.fromCharCode(13) + 'b',
+      '/a' + String.fromCharCode(7) + 'b',
+      '/a' + String.fromCharCode(31) + 'b',
+      '/a' + String.fromCharCode(127) + 'b',
+    ];
+    for (const path of controlPaths) {
+      assert.throws(
+        () => clientActivityEventSchema.parse(makeEvent({ path })),
+        `path ${JSON.stringify(path)} must be rejected at the edge`,
+      );
+    }
+    // Printable routes pass the edge check (query strings are stripped later
+    // by the service allowlist, not rejected here).
+    for (const path of ['/products/linen-shirt?ref=home', '/cart#x', '/products/a%20b']) {
+      const parsed = clientActivityEventSchema.parse(makeEvent({ path }));
+      assert.equal(parsed.path, path);
+    }
+    // Over-length paths are rejected before normalization.
+    assert.throws(() => clientActivityEventSchema.parse(makeEvent({ path: '/x'.repeat(200) })));
+  });
+
   it('coerces ISO timestamps and rejects unparseable or non-timestamp values', () => {
     const parsed = clientActivityEventSchema.parse(
       makeEvent({ ts: '2026-11-24T10:00:00.000Z' }),
