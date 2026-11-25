@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import { objectIdSchema } from './common.schema.js';
 import { normalizeBdMobile } from '../utils/phone.js';
+import { ACTIVITY_EVENT_TYPES } from '../models/activity-event.model.js';
+
+/** Optional ISO-8601 date query param → Date (rejects unparseable values). */
+const isoDateParam = z
+  .string()
+  .refine((value) => !Number.isNaN(Date.parse(value)), 'must be a valid ISO date')
+  .transform((value) => new Date(value));
 
 export const adminIdParamsSchema = z.object({ id: objectIdSchema });
 
@@ -103,8 +110,27 @@ export const adminCustomerQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(12),
 });
 
+export const adminActivityRecentQuerySchema = z.object({
+  type: z.enum(ACTIVITY_EVENT_TYPES).optional(),
+  source: z.enum(['client', 'server']).optional(),
+  userId: objectIdSchema.optional(),
+  from: isoDateParam.optional(),
+  to: isoDateParam.optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(25),
+});
+
+export const adminActivityTimelineQuerySchema = z.object({
+  from: isoDateParam.optional(),
+  to: isoDateParam.optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(25),
+});
+
 export type AdminOrderStatusUpdateInput = z.infer<typeof adminOrderStatusUpdateSchema>;
 export type AdminVariantQuery = z.infer<typeof adminVariantQuerySchema>;
 export type AdminProductQuery = z.infer<typeof adminProductQuerySchema>;
 export type AdminOrderQuery = z.infer<typeof adminOrderQuerySchema>;
 export type AdminCustomerQuery = z.infer<typeof adminCustomerQuerySchema>;
+export type AdminActivityRecentQuery = z.infer<typeof adminActivityRecentQuerySchema>;
+export type AdminActivityTimelineQuery = z.infer<typeof adminActivityTimelineQuerySchema>;

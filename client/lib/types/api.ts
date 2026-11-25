@@ -39,7 +39,9 @@ export type ApiErrorCode =
   | 'REFUND_CONFIRMATION_REQUIRED'
   | 'REFUND_ALREADY_COMPLETED'
   /** Manual payments are blocked because the payment index is not ready. */
-  | 'PAYMENT_INDEX_UNAVAILABLE';
+  | 'PAYMENT_INDEX_UNAVAILABLE'
+  /** Activity: identifiable timeline disabled while tracking is off (H-1 gate). */
+  | 'ACTIVITY_DISABLED';
 
 export interface ApiErrorDetail {
   path: string;

@@ -117,3 +117,115 @@ export interface BulkVariantPayload {
   items: Array<{ size: string; stock: number }>;
   images?: string[];
 }
+
+// ---- Customer Activity Center (Phase 2) ---------------------------------
+
+export type ActivityEventType =
+  | 'page.view'
+  | 'product.view'
+  | 'product.impression'
+  | 'search.performed'
+  | 'filter.applied'
+  | 'sort.changed'
+  | 'cart.checkout_clicked'
+  | 'checkout.viewed'
+  | 'auth.login'
+  | 'auth.register'
+  | 'auth.google_login'
+  | 'auth.logout'
+  | 'cart.add'
+  | 'cart.update'
+  | 'cart.remove'
+  | 'cart.clear'
+  | 'cart.merge'
+  | 'checkout.started'
+  | 'order.purchased'
+  | 'order.cancelled'
+  | 'payment.claim_submitted'
+  | 'payment.claim_reviewed'
+  | 'payment.refunded'
+  | 'admin.order_status_changed'
+  | 'admin.product_created'
+  | 'admin.product_updated'
+  | 'admin.product_deleted'
+  | 'admin.variant_created'
+  | 'admin.variant_updated'
+  | 'admin.variant_deleted'
+  | 'admin.variant_restored'
+  | 'admin.customer_viewed';
+
+export interface ActivityEventDto {
+  id: string;
+  type: ActivityEventType;
+  source: 'client' | 'server';
+  ts: string;
+  userId?: string;
+  anonymousId?: string;
+  sessionId?: string;
+  path?: string;
+  productId?: string;
+  variantId?: string;
+  orderId?: string;
+  customerId?: string;
+  query?: string;
+  quantity?: number;
+  value?: number;
+  decision?: string;
+  fromStatus?: string;
+  toStatus?: string;
+}
+
+export interface LiveSessionDto {
+  identity: string;
+  userId?: string;
+  path?: string;
+  lastTs: string;
+  events: number;
+}
+
+export interface LiveActivityDto {
+  trackingEnabled: boolean;
+  visitors5m: number;
+  cartsWithItems: number;
+  openCheckouts: number;
+  sessions: LiveSessionDto[];
+  generatedAt: string;
+  stale: boolean;
+}
+
+export interface ActivityFeedPage {
+  items: ActivityEventDto[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface OrderHistoryEntry {
+  order: string;
+  orderNumber: string;
+  status: string;
+  at: string;
+  by?: string;
+}
+
+export interface CustomerTimelineResult {
+  user: { id: string; email: string; name: string; role: string; createdAt: string };
+  activity: ActivityFeedPage;
+  orderHistory: OrderHistoryEntry[];
+  /** True when older status changes were dropped by the server-side cap (L-4). */
+  orderHistoryTruncated?: boolean;
+}
+
+export interface AdminCustomer {
+  id: string;
+  email: string;
+  name: string;
+  role: 'customer' | 'admin';
+  createdAt: string;
+}
+
+export interface AdminCustomerDetail {
+  user: AdminCustomer;
+  recentOrders: OrderDto[];
+}

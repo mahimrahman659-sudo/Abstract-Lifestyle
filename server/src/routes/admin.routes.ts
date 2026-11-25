@@ -40,6 +40,7 @@ import {
   updateVariantSchema,
 } from '../schemas/variant.schema.js';
 import { destroyAssetsSchema } from '../schemas/upload.schema.js';
+import { adminActivityRouter } from './admin-activity.routes.js';
 
 export const adminRouter: Router = Router();
 
@@ -100,6 +101,9 @@ adminRouter.patch(
 // Customers
 adminRouter.get('/customers', adminListCustomersHandler);
 adminRouter.get('/customers/:id', adminGetCustomerHandler);
+
+// Customer Activity Center (Phase 2) — inherits requireAuth + requireRole above.
+adminRouter.use('/activity', adminActivityRouter);
 
 // Site images (storefront marketing slots)
 adminRouter.get('/site-images', adminListSiteImagesHandler);

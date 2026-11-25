@@ -1,5 +1,8 @@
 import type {
+  ActivityFeedPage,
   AdminCategory,
+  AdminCustomer,
+  AdminCustomerDetail,
   AdminImageAsset,
   AdminOrderDetail,
   AdminProduct,
@@ -8,7 +11,9 @@ import type {
   BulkVariantPayload,
   CreateCategoryPayload,
   CreateProductPayload,
+  CustomerTimelineResult,
   ListEnvelope,
+  LiveActivityDto,
   OrderDto,
   OrderStatus,
   PaymentMethod,
@@ -48,6 +53,24 @@ export interface AdminPaymentRefundPayload {
   refundRecipient: string;
   confirmed: true;
   note?: string;
+}
+
+export interface AdminActivityRecentQuery {
+  type?: string;
+  source?: 'client' | 'server';
+  userId?: string;
+  /** ISO date bounds (inclusive). */
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface AdminTimelineQuery {
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
 }
 
 const toQueryString = (params: Record<string, string | number | undefined>): string => {
@@ -156,4 +179,19 @@ export const adminApi = {
       method: 'PATCH',
       body: payload,
     }),
+
+  // Customer Activity Center (Phase 2)
+  getLiveActivity: (signal?: AbortSignal) =>
+    apiFetch<LiveActivityDto>('/admin/activity/live', { signal }),
+  listRecentActivity: (query: AdminActivityRecentQuery = {}) =>
+    apiFetch<ActivityFeedPage>(`/admin/activity/recent${toQueryString({ ...query })}`),
+  getCustomerTimeline: (customerId: string, query: AdminTimelineQuery = {}) =>
+    apiFetch<CustomerTimelineResult>(
+      `/admin/activity/customers/${customerId}/timeline${toQueryString({ ...query })}`,
+    ),
+
+  // Customers (Phase 2 UI — API existed since Phase 0)
+  listCustomers: (query: { search?: string; page?: number; limit?: number } = {}) =>
+    apiFetch<ListEnvelope<AdminCustomer>>(`/admin/customers${toQueryString({ ...query })}`),
+  getCustomer: (id: string) => apiFetch<AdminCustomerDetail>(`/admin/customers/${id}`),
 };
