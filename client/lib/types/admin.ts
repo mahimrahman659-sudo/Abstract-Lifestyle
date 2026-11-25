@@ -215,6 +215,11 @@ export interface CustomerTimelineResult {
   orderHistory: OrderHistoryEntry[];
   /** True when older status changes were dropped by the server-side cap (L-4). */
   orderHistoryTruncated?: boolean;
+  /**
+   * Phase 2B-C: false ⇒ behavioral events were NOT collected for this
+   * response (tracking disabled); only operational order history is served.
+   */
+  trackingEnabled: boolean;
 }
 
 export interface AdminCustomer {

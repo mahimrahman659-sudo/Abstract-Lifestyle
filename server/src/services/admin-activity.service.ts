@@ -264,6 +264,12 @@ export interface CustomerTimelineResult {
   orderHistory: OrderHistoryEntry[];
   /** True when older status changes were dropped by ORDER_HISTORY_CAP (L-4). */
   orderHistoryTruncated: boolean;
+  /**
+   * Phase 2B-C: false ⇒ behavioral events were NOT read (tracking disabled);
+   * `activity` is an empty page and only operational history is returned.
+   * Historical behavioral data is never served automatically while disabled.
+   */
+  trackingEnabled: boolean;
 }
 
 const ORDER_HISTORY_CAP = 100;
@@ -277,29 +283,57 @@ export const getCustomerTimeline = async (
     throw new AppError(404, 'NOT_FOUND', 'Customer not found');
   }
 
+  // Phase 2B-C decoupling: behavioral reads happen ONLY while tracking is
+  // enabled. Disabled ⇒ no ActivityEventModel queries at all (previously
+  // collected behavioral data stays inaccessible until the owner flips the
+  // flag in Phase 4); operational order history remains available.
+  const trackingEnabled = env.ACTIVITY_EVENTS_ENABLED;
   const range = tsRangeFilter(query.from, query.to);
-  const filter: Record<string, unknown> = { userId: user._id };
-  if (Object.keys(range).length > 0) {
-    filter.ts = range;
-  }
 
-  const [docs, total, orders] = await Promise.all([
-    ActivityEventModel.find(filter)
-      .sort({ ts: -1, _id: -1 })
-      .skip((query.page - 1) * query.limit)
-      .limit(query.limit)
-      .maxTimeMS(QUERY_TIME_MS)
-      .lean()
-      .exec(),
-    ActivityEventModel.countDocuments(filter).maxTimeMS(QUERY_TIME_MS).exec(),
-    OrderModel.find({ user: user._id })
-      .select({ orderNumber: 1, statusHistory: 1 })
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .maxTimeMS(QUERY_TIME_MS)
-      .lean()
-      .exec(),
-  ]);
+  const ordersPromise = OrderModel.find({ user: user._id })
+    .select({ orderNumber: 1, statusHistory: 1 })
+    .sort({ createdAt: -1 })
+    .limit(50)
+    .maxTimeMS(QUERY_TIME_MS)
+    .lean()
+    .exec();
+
+  let activity: RecentActivityPage;
+  let orders: Awaited<typeof ordersPromise>;
+  if (!trackingEnabled) {
+    orders = await ordersPromise;
+    activity = {
+      items: [],
+      page: query.page,
+      limit: query.limit,
+      total: 0,
+      totalPages: 0,
+    };
+  } else {
+    const filter: Record<string, unknown> = { userId: user._id };
+    if (Object.keys(range).length > 0) {
+      filter.ts = range;
+    }
+    const [docs, total, orderDocs] = await Promise.all([
+      ActivityEventModel.find(filter)
+        .sort({ ts: -1, _id: -1 })
+        .skip((query.page - 1) * query.limit)
+        .limit(query.limit)
+        .maxTimeMS(QUERY_TIME_MS)
+        .lean()
+        .exec(),
+      ActivityEventModel.countDocuments(filter).maxTimeMS(QUERY_TIME_MS).exec(),
+      ordersPromise,
+    ]);
+    orders = orderDocs;
+    activity = {
+      items: docs.map((doc) => toActivityDto(doc)),
+      page: query.page,
+      limit: query.limit,
+      total,
+      totalPages: total === 0 ? 0 : Math.ceil(total / query.limit),
+    };
+  }
 
   const flattenedHistory: OrderHistoryEntry[] = orders
     .flatMap((order) =>
@@ -322,14 +356,9 @@ export const getCustomerTimeline = async (
       role: user.role,
       createdAt: user.createdAt,
     },
-    activity: {
-      items: docs.map((doc) => toActivityDto(doc)),
-      page: query.page,
-      limit: query.limit,
-      total,
-      totalPages: total === 0 ? 0 : Math.ceil(total / query.limit),
-    },
+    activity,
     orderHistory,
     orderHistoryTruncated: flattenedHistory.length > ORDER_HISTORY_CAP,
+    trackingEnabled,
   };
 };

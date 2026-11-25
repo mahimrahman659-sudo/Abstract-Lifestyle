@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { Notice } from '@/components/ui/Notice';
 import { Pagination } from '@/components/ui/Pagination';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/utils/cn';
@@ -42,6 +43,16 @@ export function CustomerTimeline({ customerId }: CustomerTimelineProps) {
   const [page, setPage] = useState(1);
   const [state, setState] = useState<TimelineState>({ status: 'loading' });
   const [reloadKey, setReloadKey] = useState(0);
+  const autoSwitchedRef = useRef(false);
+
+  // Phase 2B-C: while tracking is disabled the useful default is the
+  // operational Orders tab (behavioral data is not served at all).
+  useEffect(() => {
+    if (state.status === 'success' && !state.data.trackingEnabled && !autoSwitchedRef.current) {
+      autoSwitchedRef.current = true;
+      setTab('orders');
+    }
+  }, [state]);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,51 +138,65 @@ export function CustomerTimeline({ customerId }: CustomerTimelineProps) {
         ))}
       </div>
 
+      <p className="text-xs text-muted">
+        This view is recorded in the security access-audit log before any data is shown.
+      </p>
+
       {tab === 'activity' ? (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="timeline-from" className="text-sm font-medium text-ink">
-                From
-              </label>
-              <input
-                id="timeline-from"
-                type="date"
-                value={from}
-                onChange={(event) => {
-                  setPage(1);
-                  setFrom(event.target.value);
-                }}
-                className="h-11 rounded-xl border border-line bg-surface px-3 text-sm text-ink focus-visible:outline-2 focus-visible:outline-accent"
+          {!data.trackingEnabled ? (
+            <>
+              <Notice tone="info">
+                Behavioral activity collection is disabled — this timeline shows operational
+                order history only. Previously collected behavioral data is not served while
+                tracking is off.
+              </Notice>
+              <EmptyState
+                title="Behavioral activity unavailable"
+                description="Page, cart and checkout events appear here once activity tracking is enabled by the owner."
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="timeline-to" className="text-sm font-medium text-ink">
-                To
-              </label>
-              <input
-                id="timeline-to"
-                type="date"
-                value={to}
-                onChange={(event) => {
-                  setPage(1);
-                  setTo(event.target.value);
-                }}
-                className="h-11 rounded-xl border border-line bg-surface px-3 text-sm text-ink focus-visible:outline-2 focus-visible:outline-accent"
-              />
-            </div>
-            <p className="pb-2 text-xs text-muted">
-              Timeline views may be recorded in the activity log when tracking is enabled —
-              best-effort, not a guaranteed audit trail.
-            </p>
-          </div>
-
-          {data.activity.items.length === 0 ? (
-            <EmptyState
-              title="No activity in this range"
-              description="Adjust the dates, or note that collection begins once activity tracking is enabled."
-            />
+            </>
           ) : (
+            <>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="timeline-from" className="text-sm font-medium text-ink">
+                    From
+                  </label>
+                  <input
+                    id="timeline-from"
+                    type="date"
+                    value={from}
+                    onChange={(event) => {
+                      setPage(1);
+                      setFrom(event.target.value);
+                    }}
+                    className="h-11 rounded-xl border border-line bg-surface px-3 text-sm text-ink focus-visible:outline-2 focus-visible:outline-accent"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="timeline-to" className="text-sm font-medium text-ink">
+                    To
+                  </label>
+                  <input
+                    id="timeline-to"
+                    type="date"
+                    value={to}
+                    onChange={(event) => {
+                      setPage(1);
+                      setTo(event.target.value);
+                    }}
+                    className="h-11 rounded-xl border border-line bg-surface px-3 text-sm text-ink focus-visible:outline-2 focus-visible:outline-accent"
+                  />
+                </div>
+              </div>
+
+              {data.activity.items.length === 0 ? (
+                <EmptyState
+                  title="No activity in this range"
+                  description="Adjust the dates, or note that collection begins once activity tracking is enabled."
+                />
+              ) : (
             <>
               <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
                 {data.activity.items.map((event) => (
@@ -202,6 +227,8 @@ export function CustomerTimeline({ customerId }: CustomerTimelineProps) {
                 onPageChange={setPage}
               />
               <p className="text-xs text-muted">Total events: {data.activity.total}</p>
+            </>
+          )}
             </>
           )}
         </div>

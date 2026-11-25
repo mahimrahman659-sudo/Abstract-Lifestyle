@@ -40,8 +40,10 @@ export type ApiErrorCode =
   | 'REFUND_ALREADY_COMPLETED'
   /** Manual payments are blocked because the payment index is not ready. */
   | 'PAYMENT_INDEX_UNAVAILABLE'
-  /** Activity: identifiable timeline disabled while tracking is off (H-1 gate). */
-  | 'ACTIVITY_DISABLED';
+  /** Activity: identifiable timeline disabled while tracking is off (temporary Phase 2 gate; superseded by the Phase 2B durable audit). */
+  | 'ACTIVITY_DISABLED'
+  /** Activity: durable access-audit write failed — request failed closed (Phase 2B). */
+  | 'AUDIT_UNAVAILABLE';
 
 export interface ApiErrorDetail {
   path: string;

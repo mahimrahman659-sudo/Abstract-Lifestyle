@@ -13,6 +13,7 @@ import {
 } from '../src/models/activity-event.model.js';
 import { CartModel } from '../src/models/cart.model.js';
 import { OrderModel } from '../src/models/order.model.js';
+import { AdminAccessAuditModel } from '../src/models/admin-access-audit.model.js';
 import { UserModel, type UserDocument } from '../src/models/user.model.js';
 import { signAuthToken } from '../src/utils/jwt.js';
 import {
@@ -136,6 +137,8 @@ describe('Phase 2 — admin activity reads (disposable database)', () => {
       UserModel.syncIndexes(),
       CartModel.syncIndexes(),
       OrderModel.syncIndexes(),
+      // H-1 readiness gate on the timeline needs the audit indexes present.
+      AdminAccessAuditModel.syncIndexes(),
     ]);
     setFlag(true);
     server = createApp().listen(0, '127.0.0.1');
@@ -385,64 +388,6 @@ describe('Phase 2 — admin activity reads (disposable database)', () => {
       403,
     );
     assert.equal(await ActivityEventModel.countDocuments({ type: 'admin.customer_viewed' }), 0);
-  });
-
-  // ---- H-1: timeline feature gate while tracking is disabled -------------
-  it('timeline feature gate: sanitized 503 while flag off; authz and detail API unchanged', async () => {
-    const timelinePath = `/admin/activity/customers/${customer._id.toString()}/timeline`;
-    setFlag(false);
-    try {
-      // Authorization still happens in the router guard, before the gate.
-      assert.equal((await get(timelinePath)).status, 401, 'anonymous still 401');
-      assert.equal(
-        (await get(timelinePath, customerCookie())).status,
-        403,
-        'non-admin still 403',
-      );
-
-      // Admin request is gated with a sanitized unavailable response.
-      const gated = await get(timelinePath, adminCookie());
-      assert.equal(gated.status, 503, 'flag off ⇒ timeline unavailable');
-      const text = await gated.text();
-      const parsed = JSON.parse(text) as {
-        error?: { code?: string; message?: string };
-      };
-      assert.equal(parsed.error?.code, 'ACTIVITY_DISABLED');
-      assert.deepEqual(
-        Object.keys(parsed.error ?? {}).sort(),
-        ['code', 'message'],
-        'error envelope carries exactly code+message (sanitized)',
-      );
-      // No customer data of any kind leaks through the unavailable response.
-      for (const secret of ['@example', 'orderNumber', 'orderHistory', '"name"', '"email"', 'AL-']) {
-        assert.ok(!text.includes(secret), `503 body leaked "${secret}"`);
-      }
-
-      // Malformed ids are gated uniformly too (no existence oracle while off).
-      assert.equal(
-        (await get('/admin/activity/customers/not-an-id/timeline', adminCookie())).status,
-        503,
-        'invalid id is gated while disabled',
-      );
-
-      // The PRE-EXISTING customer detail API is intentionally unchanged.
-      const detail = await get(`/admin/customers/${customer._id.toString()}`, adminCookie());
-      assert.equal(detail.status, 200, 'existing customer-detail behaviour untouched');
-
-      // Best-effort audit events are inert while off — nothing is recorded.
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      assert.equal(
-        await ActivityEventModel.countDocuments({ type: 'admin.customer_viewed' }),
-        0,
-        'no audit rows exist while flag off (hence the gate)',
-      );
-    } finally {
-      setFlag(true);
-    }
-
-    // Flag back on ⇒ the timeline serves again (positive control).
-    const open = await get(timelinePath, adminCookie());
-    assert.equal(open.status, 200, 'flag on ⇒ timeline available');
   });
 
   // ---- L-4: truncation is disclosed --------------------------------------
