@@ -42,6 +42,15 @@ const envSchema = z
     ACTIVITY_EVENTS_ENABLED: envBoolean,
     /** Per-identity (or per-IP) event ingest limit (requests per minute). */
     ACTIVITY_EVENTS_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(60),
+    /**
+     * Phase 2C: durable-audit ENFORCEMENT for the four legacy customer/order
+     * admin endpoints (list+detail × customer+order). Separate from both
+     * ACTIVITY_EVENTS_ENABLED (behavioral tracking) and the always-on
+     * customer timeline audit. Default false: while false those four routes
+     * keep their exact pre-audit behavior and access auditing is explicitly
+     * NOT comprehensive; flipping it on adds fail-closed durable auditing.
+     */
+    ADMIN_ACCESS_AUDIT_LEGACY_ENABLED: envBoolean,
     /** Cloudinary credentials — required in production, optional in development. */
     CLOUDINARY_CLOUD_NAME: z.string().trim().default(''),
     CLOUDINARY_API_KEY: z.string().trim().default(''),

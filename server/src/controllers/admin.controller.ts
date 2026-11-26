@@ -124,7 +124,10 @@ import {
   adminListCustomers,
 } from '../services/admin-customer.service.js';
 import { getAuthUser } from '../middleware/auth.js';
+import { AppError } from '../middleware/error-handler.js';
 import { emitServerEvent } from '../services/activity.service.js';
+import { performAuditedAdminRead } from '../services/admin-access-audit.service.js';
+import { env } from '../config/env.js';
 import {
   adminCustomerQuerySchema,
   adminOrderQuerySchema,
@@ -163,12 +166,48 @@ export const destroyUploadedAssetsHandler: RequestHandler = async (req, res) => 
 
 export const adminListOrdersHandler: RequestHandler = async (req, res) => {
   const query = adminOrderQuerySchema.parse(req.query);
-  res.status(200).json(await adminListOrders(query));
+  if (!env.ADMIN_ACCESS_AUDIT_LEGACY_ENABLED) {
+    // Phase 2C rollout flag OFF: preserve pre-audit behavior exactly.
+    // Access auditing for this route is NOT yet comprehensive (documented
+    // in CUSTOMER_ACTIVITY_PHASE2C_IMPLEMENTATION_REPORT.md).
+    res.status(200).json(await adminListOrders(query));
+    return;
+  }
+  const admin = getAuthUser(req);
+  const { data, correlationId } = await performAuditedAdminRead({
+    action: 'order.list.viewed',
+    adminId: admin._id,
+    page: query.page,
+    load: async () => {
+      const result = await adminListOrders(query);
+      return { data: result, resultCount: result.total };
+    },
+  });
+  res.setHeader('X-Audit-Id', correlationId);
+  if (!data) {
+    throw new AppError(404, 'NOT_FOUND', 'Not found');
+  }
+  res.status(200).json(data);
 };
 
 export const adminGetOrderHandler: RequestHandler = async (req, res) => {
   const { id } = adminIdParamsSchema.parse(req.params);
-  res.status(200).json(await adminGetOrder(id));
+  if (!env.ADMIN_ACCESS_AUDIT_LEGACY_ENABLED) {
+    res.status(200).json(await adminGetOrder(id));
+    return;
+  }
+  const admin = getAuthUser(req);
+  const { data, correlationId } = await performAuditedAdminRead({
+    action: 'order.detail.viewed',
+    adminId: admin._id,
+    targetOrderId: id,
+    load: async () => ({ data: await adminGetOrder(id) }),
+  });
+  res.setHeader('X-Audit-Id', correlationId);
+  if (!data) {
+    throw new AppError(404, 'NOT_FOUND', 'Order not found');
+  }
+  res.status(200).json(data);
 };
 
 export const adminUpdateOrderStatusHandler: RequestHandler = async (req, res) => {
@@ -194,22 +233,65 @@ export const adminCompleteRefundHandler: RequestHandler = async (req, res) => {
 
 export const adminListCustomersHandler: RequestHandler = async (req, res) => {
   const query = adminCustomerQuerySchema.parse(req.query);
-  res.status(200).json(await adminListCustomers(query));
+  if (!env.ADMIN_ACCESS_AUDIT_LEGACY_ENABLED) {
+    // Phase 2C rollout flag OFF: preserve pre-audit behavior exactly.
+    // Access auditing for this route is NOT yet comprehensive (documented
+    // in CUSTOMER_ACTIVITY_PHASE2C_IMPLEMENTATION_REPORT.md).
+    res.status(200).json(await adminListCustomers(query));
+    return;
+  }
+  const admin = getAuthUser(req);
+  const { data, correlationId } = await performAuditedAdminRead({
+    action: 'customer.list.viewed',
+    adminId: admin._id,
+    page: query.page,
+    load: async () => {
+      const result = await adminListCustomers(query);
+      return { data: result, resultCount: result.total };
+    },
+  });
+  res.setHeader('X-Audit-Id', correlationId);
+  if (!data) {
+    throw new AppError(404, 'NOT_FOUND', 'Not found');
+  }
+  res.status(200).json(data);
 };
 
 export const adminGetCustomerHandler: RequestHandler = async (req, res) => {
   const { id } = adminIdParamsSchema.parse(req.params);
   const admin = getAuthUser(req);
-  const payload = await adminGetCustomer(id);
-  // Customer-data access audit (Phase 1B-C): every identifiable customer
-  // detail view is recorded BEFORE Phase 2 ships customer timelines.
-  // Emitted after the read succeeded; fire-and-forget, never blocks the API.
+
+  if (!env.ADMIN_ACCESS_AUDIT_LEGACY_ENABLED) {
+    // Phase 2C rollout flag OFF: existing behavior (read + supplementary
+    // feed event) — durable audit for this route not yet enforced.
+    const payload = await adminGetCustomer(id);
+    emitServerEvent({
+      type: 'admin.customer_viewed',
+      userId: admin._id,
+      customerId: payload.user.id,
+    });
+    res.status(200).json(payload);
+    return;
+  }
+
+  // Enforcement ON: durable audit BEFORE identifiable data returns.
+  const { data, correlationId } = await performAuditedAdminRead({
+    action: 'customer.detail.viewed',
+    adminId: admin._id,
+    targetCustomerId: id,
+    load: async () => ({ data: await adminGetCustomer(id) }),
+  });
+  res.setHeader('X-Audit-Id', correlationId);
+  if (!data) {
+    throw new AppError(404, 'NOT_FOUND', 'Customer not found');
+  }
+  // Supplementary feed event (flag-gated no-op; never the security audit).
   emitServerEvent({
     type: 'admin.customer_viewed',
     userId: admin._id,
-    customerId: payload.user.id,
+    customerId: data.user.id,
   });
-  res.status(200).json(payload);
+  res.status(200).json(data);
 };
 
 // Site images (storefront marketing slots)

@@ -195,6 +195,7 @@ describe('Phase 2B — durable admin customer-access audit (disposable database)
     assert.ok(row);
     assert.match(row.auditId, UUID_V4, 'server-generated UUID v4 audit id');
     assert.equal(row.adminId.toString(), admin._id.toString(), 'authenticated admin');
+    assert.ok(row.targetCustomerId, 'timeline records always carry a target');
     assert.equal(row.targetCustomerId.toString(), customer._id.toString(), 'target customer');
     assert.equal(row.outcome, 'success');
     assert.match(row.correlationId, UUID_V4);
@@ -305,6 +306,7 @@ describe('Phase 2B — durable admin customer-access audit (disposable database)
 
     const row = await AdminAccessAuditModel.findOne({}).lean();
     assert.ok(row);
+    assert.ok(row.targetCustomerId, 'timeline records always carry a target');
     assert.equal(row.targetCustomerId.toString(), customer._id.toString());
     assert.notEqual(row.targetCustomerId.toString(), other._id.toString());
   });
@@ -334,6 +336,7 @@ describe('Phase 2B — durable admin customer-access audit (disposable database)
     assert.ok(missing.headers.get('x-audit-id'), 'correlation id echoed');
     const notFoundRow = await AdminAccessAuditModel.findOne({ outcome: 'not_found' }).lean();
     assert.ok(notFoundRow, 'attempt recorded with sanitized outcome');
+    assert.ok(notFoundRow.targetCustomerId, 'not_found attempt names the target');
     assert.equal(notFoundRow.targetCustomerId.toString().length, 24);
 
     // Malformed id → 400 from validation, no audit row (validation runs first).

@@ -19,8 +19,23 @@ import { Schema, model, type HydratedDocument, type Types } from 'mongoose';
  * plan). Retention is enforced by the TTL index once rolled out.
  */
 
-/** Actions this audit trail can record (extend explicitly, never open-ended). */
-export const ADMIN_ACCESS_AUDIT_ACTIONS = ['customer.timeline.viewed'] as const;
+/**
+ * Actions this audit trail can record (extend explicitly, never open-ended).
+ * Phase 2C adds the four legacy customer/order management actions; naming
+ * follows the established `<entity>.<operation>.<outcome>` convention.
+ * - `customer.timeline.viewed` — identifiable timeline (always enforced);
+ * - `*.list.viewed`            — BULK access: one record per request with
+ *                                bounded metadata (resultCount/page), never
+ *                                per-row records and never id lists;
+ * - `*.detail.viewed`          — individual access: one target id only.
+ */
+export const ADMIN_ACCESS_AUDIT_ACTIONS = [
+  'customer.timeline.viewed',
+  'customer.list.viewed',
+  'customer.detail.viewed',
+  'order.list.viewed',
+  'order.detail.viewed',
+] as const;
 export type AdminAccessAuditAction = (typeof ADMIN_ACCESS_AUDIT_ACTIONS)[number];
 
 /**
@@ -47,7 +62,17 @@ export interface AdminAccessAudit {
   /** Authenticated administrator (resolved server-side from the verified cookie). */
   adminId: Types.ObjectId;
   action: AdminAccessAuditAction;
-  targetCustomerId: Types.ObjectId;
+  /** Individual access target (customer detail / timeline). */
+  targetCustomerId?: Types.ObjectId;
+  /** Individual access target (order detail). */
+  targetOrderId?: Types.ObjectId;
+  /**
+   * Bulk access metadata ONLY (list actions): total matching records for the
+   * page. Bounded; never an id list, never names/search terms.
+   */
+  resultCount?: number;
+  /** Bulk access metadata ONLY: requested page number (bounded). */
+  page?: number;
   /** Server-generated timestamp. */
   at: Date;
   outcome: AdminAccessAuditOutcome;
@@ -69,7 +94,14 @@ const adminAccessAuditSchema = new Schema<AdminAccessAudit>(
     },
     adminId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     action: { type: String, enum: [...ADMIN_ACCESS_AUDIT_ACTIONS], required: true },
-    targetCustomerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    // Individual-access targets (optional → Phase 2B records without them
+    // remain valid; each record carries at most one target id).
+    targetCustomerId: { type: Schema.Types.ObjectId, ref: 'User' },
+    targetOrderId: { type: Schema.Types.ObjectId, ref: 'Order' },
+    // Bulk-access metadata (optional; bounded scalars only — never id lists,
+    // names, search terms, phone numbers, addresses or response bodies).
+    resultCount: { type: Number, min: 0, max: 1_000_000 },
+    page: { type: Number, min: 1, max: 1_000_000 },
     at: { type: Date, required: true },
     outcome: { type: String, enum: [...ADMIN_ACCESS_AUDIT_OUTCOMES], required: true },
     correlationId: {
