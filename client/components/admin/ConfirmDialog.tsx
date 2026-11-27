@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Button } from '@/components/ui/Button';
+import { Button, type ButtonVariant } from '@/components/ui/Button';
 
 interface ConfirmDialogProps {
   open: boolean;
   title: string;
   message: string;
   confirmLabel?: string;
+  confirmVariant?: ButtonVariant;
   busy?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
@@ -19,6 +20,7 @@ export function ConfirmDialog({
   title,
   message,
   confirmLabel = 'Confirm',
+  confirmVariant = 'danger',
   busy = false,
   onConfirm,
   onCancel,
@@ -64,7 +66,7 @@ export function ConfirmDialog({
         <Button variant="secondary" disabled={busy} onClick={onCancel}>
           Cancel
         </Button>
-        <Button variant="danger" loading={busy} disabled={busy} onClick={onConfirm}>
+        <Button variant={confirmVariant} loading={busy} disabled={busy} onClick={onConfirm}>
           {confirmLabel}
         </Button>
       </div>

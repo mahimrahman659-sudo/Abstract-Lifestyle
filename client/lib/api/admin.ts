@@ -11,6 +11,8 @@ import type {
   ListEnvelope,
   OrderDto,
   OrderStatus,
+  PaymentMethod,
+  PaymentStatus,
   ProductStatus,
   SiteImage,
   SiteImageKey,
@@ -28,8 +30,24 @@ export interface AdminProductQuery {
 export interface AdminOrderQuery {
   search?: string;
   status?: OrderStatus;
+  paymentStatus?: PaymentStatus;
+  paymentMethod?: PaymentMethod;
   page?: number;
   limit?: number;
+}
+
+export interface AdminPaymentReviewPayload {
+  claimId: string;
+  decision: 'paid' | 'rejected';
+  rejectionReason?: string;
+}
+
+export interface AdminPaymentRefundPayload {
+  refundReference: string;
+  refundAmount: number;
+  refundRecipient: string;
+  confirmed: true;
+  note?: string;
 }
 
 const toQueryString = (params: Record<string, string | number | undefined>): string => {
@@ -127,5 +145,15 @@ export const adminApi = {
     apiFetch<{ order: OrderDto }>(`/admin/orders/${id}/status`, {
       method: 'PATCH',
       body: { status },
+    }),
+  reviewPayment: (id: string, payload: AdminPaymentReviewPayload) =>
+    apiFetch<{ order: OrderDto }>(`/admin/orders/${id}/payment`, {
+      method: 'PATCH',
+      body: payload,
+    }),
+  completeRefund: (id: string, payload: AdminPaymentRefundPayload) =>
+    apiFetch<{ order: OrderDto }>(`/admin/orders/${id}/payment/refund`, {
+      method: 'PATCH',
+      body: payload,
     }),
 };

@@ -128,8 +128,14 @@ import {
   adminCustomerQuerySchema,
   adminOrderQuerySchema,
   adminOrderStatusUpdateSchema,
+  adminPaymentRefundSchema,
+  adminPaymentReviewSchema,
   adminProductQuerySchema,
 } from '../schemas/admin.schema.js';
+import {
+  completeManualRefund,
+  reviewManualPayment,
+} from '../services/payment-claim.service.js';
 
 export const uploadImagesHandler: RequestHandler = async (req, res) => {
   const files = (req.files as Express.Multer.File[] | undefined) ?? [];
@@ -169,6 +175,20 @@ export const adminUpdateOrderStatusHandler: RequestHandler = async (req, res) =>
   const input = adminOrderStatusUpdateSchema.parse(req.body);
   const admin = getAuthUser(req);
   res.status(200).json({ order: await adminUpdateOrderStatus(admin, id, input) });
+};
+
+export const adminReviewPaymentHandler: RequestHandler = async (req, res) => {
+  const { id } = adminIdParamsSchema.parse(req.params);
+  const input = adminPaymentReviewSchema.parse(req.body);
+  const admin = getAuthUser(req);
+  res.status(200).json({ order: await reviewManualPayment(admin, id, input) });
+};
+
+export const adminCompleteRefundHandler: RequestHandler = async (req, res) => {
+  const { id } = adminIdParamsSchema.parse(req.params);
+  const input = adminPaymentRefundSchema.parse(req.body);
+  const admin = getAuthUser(req);
+  res.status(200).json({ order: await completeManualRefund(admin, id, input) });
 };
 
 export const adminListCustomersHandler: RequestHandler = async (req, res) => {

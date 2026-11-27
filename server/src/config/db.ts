@@ -1,6 +1,12 @@
 import mongoose from 'mongoose';
 import { env } from './env.js';
 import {
+  inspectPaymentTrxIdIndex,
+  paymentIndexRequirementMessage,
+  type PaymentIndexReadiness,
+} from './payment-index.js';
+import { isAnyManualProviderEnabled } from './payment.js';
+import {
   readDeploymentCapabilities,
   transactionRequirementMessage,
   type DeploymentCapabilities,
@@ -21,6 +27,8 @@ export interface ConnectOptions {
   uri?: string;
   /** Test seam: substitute the capability inspector (failure-injection tests). */
   inspectCapabilities?: (db: DatabaseHandle) => Promise<DeploymentCapabilities>;
+  /** Test seam: substitute the payment-index inspector (failure-injection tests). */
+  inspectPaymentIndex?: (db: DatabaseHandle) => Promise<PaymentIndexReadiness>;
 }
 
 type DatabaseHandle = NonNullable<typeof mongoose.connection.db>;
@@ -29,13 +37,20 @@ export const connectDB = async ({
   requireTransactions = true,
   uri = env.MONGODB_URI,
   inspectCapabilities = readDeploymentCapabilities,
+  inspectPaymentIndex = inspectPaymentTrxIdIndex,
 }: ConnectOptions = {}): Promise<void> => {
   // Never let a previous connection's facts leak into this one.
   capabilities = null;
   capabilityDatabase = null;
+  const manualPaymentsRequired = isAnyManualProviderEnabled();
 
   try {
-    await mongoose.connect(uri);
+    // Never silently create production indexes. When a manual provider is
+    // enabled, also disable implicit index creation so startup can fail closed
+    // unless the explicit payment index already exists.
+    await mongoose.connect(uri, {
+      autoIndex: env.NODE_ENV === 'development' && !manualPaymentsRequired,
+    });
   } catch (error) {
     await mongoose.disconnect().catch(() => undefined);
     throw error;
@@ -67,6 +82,24 @@ export const connectDB = async ({
     await mongoose.disconnect().catch(() => undefined);
     capabilities = null;
     throw new Error(transactionRequirementMessage(deployment));
+  }
+
+  if (manualPaymentsRequired) {
+    let readiness: PaymentIndexReadiness;
+    try {
+      readiness = await inspectPaymentIndex(db);
+    } catch {
+      readiness = {
+        ready: false,
+        required: true,
+        reason: 'the index metadata inspection threw an error',
+      };
+    }
+    if (!readiness.ready) {
+      await mongoose.disconnect().catch(() => undefined);
+      capabilities = null;
+      throw new Error(paymentIndexRequirementMessage(readiness));
+    }
   }
 
   capabilities = deployment;

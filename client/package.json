@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "type-check": "next typegen && tsc --noEmit",
-    "test": "node --test lib/__tests__/site-url.test.ts lib/__tests__/public-content.test.ts lib/__tests__/account-refresh.test.ts lib/__tests__/address-update.test.ts",
+    "test": "node --test lib/__tests__/site-url.test.ts lib/__tests__/public-content.test.ts lib/__tests__/account-refresh.test.ts lib/__tests__/address-update.test.ts lib/__tests__/payment-validation.test.ts",
     "test:browser": "node --test tests/account.browser.mjs"
   },
   "dependencies": {

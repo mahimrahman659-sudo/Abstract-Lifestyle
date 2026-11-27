@@ -6,7 +6,7 @@ import { Spinner } from "@/components/ui/Spinner";
 
 export const metadata: Metadata = {
   title: "Checkout",
-  description: "Choose your shipping address and place a Cash on Delivery order.",
+  description: "Choose your shipping address and payment method, then place your order.",
 };
 
 export default function CheckoutPage() {

@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import type { RequestHandler } from 'express';
 import { getDeploymentCapabilities } from '../config/db.js';
+import { getPaymentIndexReadiness } from '../config/payment-index.js';
 
 /** True only when the default connection is open AND MongoDB answers a ping. */
 const isDatabaseReady = async (): Promise<boolean> => {
@@ -20,7 +21,13 @@ export const getHealth: RequestHandler = async (_req, res) => {
   // Readiness includes the transaction capability: checkout/cancel cannot work
   // without it, and the API refuses to start when it is missing.
   const transactions = databaseReady && (getDeploymentCapabilities()?.transactions ?? false);
-  const ok = databaseReady && transactions;
-  // Status only — never expose error details or connection information.
-  res.status(ok ? 200 : 503).json({ ok, transactions });
+  const paymentIndex = await getPaymentIndexReadiness();
+  const paymentIndexReady = paymentIndex.ready;
+  const ok = databaseReady && transactions && paymentIndexReady;
+  // Status only �?" never expose error details or connection information.
+  res.status(ok ? 200 : 503).json({
+    ok,
+    transactions,
+    ...(paymentIndex.required ? { paymentIndex: paymentIndexReady } : {}),
+  });
 };

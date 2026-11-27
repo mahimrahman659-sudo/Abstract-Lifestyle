@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AddressForm, type AddressFormErrors } from '@/components/checkout/AddressForm';
 import { CheckoutSteps } from '@/components/checkout/CheckoutSteps';
+import { PaymentMethodSelector } from '@/components/checkout/PaymentMethodSelector';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useCart } from '@/components/cart/CartProvider';
 import { Button } from '@/components/ui/Button';
@@ -15,8 +16,9 @@ import { Price } from '@/components/ui/Price';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api/client';
 import { orderApi, type CreateOrderPayload } from '@/lib/api/order';
+import { paymentApi } from '@/lib/api/payment';
 import { userApi } from '@/lib/api/user';
-import type { Address } from '@/lib/types';
+import type { Address, PaymentMethod, PublicPaymentMethod } from '@/lib/types';
 import {
   cleanAddressPayload,
   validateAddress,
@@ -33,6 +35,11 @@ type AddressesState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'success'; items: Address[] };
+
+type PaymentMethodsState =
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'success'; items: PublicPaymentMethod[] };
 
 const emptyAddress: AddressFormValues = {
   fullName: '',
@@ -74,6 +81,8 @@ export function CheckoutClient() {
   const [retryNote, setRetryNote] = useState<string | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodsState>({ status: 'loading' });
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cod');
 
   // Restore an in-session draft (name/phone/address only) after mount.
   useEffect(() => {
@@ -148,6 +157,40 @@ export function CheckoutClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadKey]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const { methods } = await paymentApi.methods();
+        if (!cancelled) {
+          setPaymentMethods({ status: 'success', items: methods });
+          if (!methods.some((method) => method.method === paymentMethod && method.enabled)) {
+            setPaymentMethod('cod');
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setPaymentMethods({
+            status: 'error',
+            message:
+              error instanceof ApiError
+                ? error.message
+                : 'Could not load payment methods.',
+          });
+          setPaymentMethod('cod');
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Payment methods are loaded once per checkout; the selection is validated
+    // against the fetched list inside the effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const onAddressChange = (field: keyof AddressFormValues, value: string): void => {
     setAddressValues((previous) => ({ ...previous, [field]: value }));
     setAddressErrors((previous) => ({ ...previous, [field]: undefined }));
@@ -217,7 +260,7 @@ export function CheckoutClient() {
 
     const payload: CreateOrderPayload = {
       checkoutId: checkoutIdRef.current,
-      paymentMethod: 'cod',
+      paymentMethod,
     };
 
     if (selection === 'new') {
@@ -253,7 +296,11 @@ export function CheckoutClient() {
       resetCart();
       clearCheckoutDraft();
       // Keep `submitting` true: the button stays disabled until navigation.
-      router.push(`/orders/${order.id}?placed=1`);
+      router.push(
+        order.paymentMethod === 'cod'
+          ? `/orders/${order.id}?placed=1`
+          : `/orders/${order.id}?placed=1&pay=1`,
+      );
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
         if (error.code === 'CART_NOT_ORDERABLE') {
@@ -571,24 +618,13 @@ export function CheckoutClient() {
           <h2 id="payment-heading" className="text-base font-semibold text-ink">
             Payment method
           </h2>
-          {/* Selected and non-interactive: Cash on Delivery is the only method. */}
-          <div
-            aria-current="true"
-            className="mt-3 flex items-start gap-3 rounded-xl border-2 border-brand bg-brand/5 px-4 py-3 text-sm text-ink"
-          >
-            <span
-              aria-hidden="true"
-              className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-brand text-[11px] font-bold text-white"
-            >
-              ✓
-            </span>
-            <span>
-              <span className="font-semibold">Cash on Delivery</span>
-              <span className="mt-0.5 block text-muted">
-                Pay with cash when your order arrives. No card needed.
-              </span>
-            </span>
-          </div>
+          <PaymentMethodSelector
+            state={paymentMethods}
+            selected={paymentMethod}
+            total={serverCart.total}
+            disabled={submitting}
+            onSelect={setPaymentMethod}
+          />
         </section>
       </div>
 
@@ -602,8 +638,9 @@ export function CheckoutClient() {
             {submitLabel}
           </Button>
           <p className="text-xs text-muted">
-            By placing this order you agree to pay on delivery. Prices and stock are confirmed by
-            the server.
+            {paymentMethod === 'cod'
+              ? 'By placing this order you agree to pay on delivery. Prices and stock are confirmed by the server.'
+              : 'Your order reserves stock now. Transfer the exact total and submit the transaction details on the order page for verification.'}
           </p>
         </div>
       </aside>

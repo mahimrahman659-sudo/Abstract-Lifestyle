@@ -6,6 +6,8 @@ import express from 'express';
 import { once } from 'node:events';
 import { connectDB, disconnectDB, getDeploymentCapabilities } from '../src/config/db.js';
 import type { DeploymentCapabilities } from '../src/config/mongo-capabilities.js';
+import type { PaymentIndexReadiness } from '../src/config/payment-index.js';
+import { env } from '../src/config/env.js';
 import { getHealth } from '../src/controllers/health.controller.js';
 import { mockConnection } from './helpers/mock-connection.js';
 
@@ -16,6 +18,32 @@ const noTransactions: DeploymentCapabilities = {
   transactions: false,
   kind: 'standalone',
   detail: 'standalone deployment',
+};
+
+const replicaSet: DeploymentCapabilities = {
+  transactions: true,
+  kind: 'replica-set',
+  detail: 'test replica set',
+};
+
+const setManualProviders = (enabled: boolean): void => {
+  env.BKASH_PAYMENT_ENABLED = enabled;
+  env.BKASH_PAYMENT_NUMBER = enabled ? '01711111111' : '';
+  env.NAGAD_PAYMENT_ENABLED = false;
+  env.NAGAD_PAYMENT_NUMBER = '';
+  env.ROCKET_PAYMENT_ENABLED = false;
+  env.ROCKET_PAYMENT_NUMBER = '';
+};
+
+const ready: PaymentIndexReadiness = {
+  ready: true,
+  required: true,
+  reason: 'test index ready',
+};
+const missing: PaymentIndexReadiness = {
+  ready: false,
+  required: true,
+  reason: 'test index missing',
 };
 
 describe('R3/P2 — MongoDB capability inspection failure handling', () => {
@@ -116,5 +144,81 @@ describe('R3/P2 — MongoDB capability inspection failure handling', () => {
     const response = await fetch(`http://127.0.0.1:${address.port}/health`);
     assert.equal(response.status, 503);
     assert.deepEqual(await response.json(), { ok: false, transactions: false });
+  });
+
+  describe('payment index readiness at startup', () => {
+    it('fails startup when a manual provider is enabled and the index is missing', async (t) => {
+      mockConnection(t, db);
+      t.after(() => setManualProviders(false));
+      setManualProviders(true);
+
+      await assert.rejects(
+        connectDB({
+          uri,
+          inspectCapabilities: async () => replicaSet,
+          inspectPaymentIndex: async () => missing,
+        }),
+        /required MongoDB payment index is not ready/,
+      );
+      assert.equal(mongoose.connection.readyState, 0);
+      assert.equal(getDeploymentCapabilities(), null);
+    });
+
+    it('fails startup when the index inspection throws', async (t) => {
+      mockConnection(t, db);
+      t.after(() => setManualProviders(false));
+      setManualProviders(true);
+
+      await assert.rejects(
+        connectDB({
+          uri,
+          inspectCapabilities: async () => replicaSet,
+          inspectPaymentIndex: async () => {
+            throw new Error('index metadata failure');
+          },
+        }),
+        /required MongoDB payment index is not ready/,
+      );
+      assert.equal(mongoose.connection.readyState, 0);
+      assert.equal(getDeploymentCapabilities(), null);
+    });
+
+    it('accepts a correctly configured index with a manual provider enabled', async (t) => {
+      const connect = mockConnection(t, db);
+      t.after(() => setManualProviders(false));
+      setManualProviders(true);
+
+      await connectDB({
+        uri,
+        inspectCapabilities: async () => replicaSet,
+        inspectPaymentIndex: async () => ready,
+      });
+      assert.equal(getDeploymentCapabilities()?.transactions, true);
+      assert.deepEqual(
+        (connect.mock.calls[0]?.arguments as unknown[])?.[1],
+        { autoIndex: false },
+        'manual payments disable implicit production index creation',
+      );
+      await disconnectDB();
+    });
+
+    it('does not require the payment index when every manual provider is disabled', async (t) => {
+      mockConnection(t, db);
+      t.after(() => setManualProviders(false));
+      setManualProviders(false);
+      let inspected = false;
+
+      await connectDB({
+        uri,
+        inspectCapabilities: async () => replicaSet,
+        inspectPaymentIndex: async () => {
+          inspected = true;
+          return missing;
+        },
+      });
+      assert.equal(inspected, false, 'the payment index is not consulted for COD-only startup');
+      assert.equal(getDeploymentCapabilities()?.transactions, true);
+      await disconnectDB();
+    });
   });
 });

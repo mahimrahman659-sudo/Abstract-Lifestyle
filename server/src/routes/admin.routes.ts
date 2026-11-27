@@ -7,6 +7,8 @@ import {
   adminListSiteImagesHandler,
   adminUpdateOrderStatusHandler,
   adminUpdateSiteImageHandler,
+  adminReviewPaymentHandler,
+  adminCompleteRefundHandler,
   createCategoryHandler,
   createProductHandler,
   createVariantHandler,
@@ -31,6 +33,7 @@ import { validateBody } from '../middleware/validate.js';
 import { createCategorySchema, updateCategorySchema } from '../schemas/category.schema.js';
 import { createProductSchema, updateProductSchema } from '../schemas/product.schema.js';
 import { updateSiteImageSchema } from '../schemas/site-image.schema.js';
+import { adminPaymentRefundSchema, adminPaymentReviewSchema } from '../schemas/admin.schema.js';
 import {
   bulkCreateVariantsSchema,
   createVariantSchema,
@@ -83,6 +86,16 @@ adminRouter.post(
 adminRouter.get('/orders', adminListOrdersHandler);
 adminRouter.get('/orders/:id', adminGetOrderHandler);
 adminRouter.patch('/orders/:id/status', adminUpdateOrderStatusHandler);
+adminRouter.patch(
+  '/orders/:id/payment',
+  validateBody(adminPaymentReviewSchema),
+  adminReviewPaymentHandler,
+);
+adminRouter.patch(
+  '/orders/:id/payment/refund',
+  validateBody(adminPaymentRefundSchema),
+  adminCompleteRefundHandler,
+);
 
 // Customers
 adminRouter.get('/customers', adminListCustomersHandler);

@@ -1,5 +1,15 @@
 import 'dotenv/config';
 import { z } from 'zod';
+import { normalizeReceivingAccount } from '../utils/payment.js';
+
+/**
+ * Explicit opt-in flag: only `"true"` enables a feature. Coercing the string
+ * `"false"` with `Boolean()` would silently turn it on.
+ */
+const envBoolean = z
+  .enum(['true', 'false'])
+  .default('false')
+  .transform((value) => value === 'true');
 
 const envSchema = z
   .object({
@@ -41,8 +51,58 @@ const envSchema = z
      * the verifier whenever NODE_ENV === "production".
      */
     GOOGLE_AUTH_TEST_SEAM: z.string().trim().default(''),
+    /**
+     * Manual MFS payments. Every provider is disabled by default and stays
+     * disabled until an authorized receiving account is confirmed by the owner.
+     * The receiving number is only ever exposed through the public payment
+     * methods endpoint, never hardcoded in client source.
+     */
+    BKASH_PAYMENT_ENABLED: envBoolean,
+    BKASH_PAYMENT_NUMBER: z.string().trim().default(''),
+    BKASH_PAYMENT_INSTRUCTIONS: z.string().trim().default(''),
+    NAGAD_PAYMENT_ENABLED: envBoolean,
+    NAGAD_PAYMENT_NUMBER: z.string().trim().default(''),
+    NAGAD_PAYMENT_INSTRUCTIONS: z.string().trim().default(''),
+    ROCKET_PAYMENT_ENABLED: envBoolean,
+    ROCKET_PAYMENT_NUMBER: z.string().trim().default(''),
+    ROCKET_PAYMENT_INSTRUCTIONS: z.string().trim().default(''),
+    /** Conservative, configurable TrxID bounds after normalization. */
+    MFS_TRX_ID_MIN_LENGTH: z.coerce.number().int().min(4).max(64).default(6),
+    MFS_TRX_ID_MAX_LENGTH: z.coerce.number().int().min(4).max(64).default(32),
+    /**
+     * Reservation expiry is deliberately NOT automated. 0 = no policy.
+     * Any non-zero value is a configuration placeholder for a future,
+     * owner-approved reconciliation job; nothing reads it to cancel orders.
+     */
+    MANUAL_PAYMENT_EXPIRY_MINUTES: z.coerce.number().int().nonnegative().default(0),
   })
   .superRefine((value, ctx) => {
+    if (value.MFS_TRX_ID_MIN_LENGTH > value.MFS_TRX_ID_MAX_LENGTH) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['MFS_TRX_ID_MIN_LENGTH'],
+        message: 'MFS_TRX_ID_MIN_LENGTH must not exceed MFS_TRX_ID_MAX_LENGTH',
+      });
+    }
+
+    const receivingAccounts = [
+      { enabled: value.BKASH_PAYMENT_ENABLED, number: value.BKASH_PAYMENT_NUMBER, method: 'bkash' as const, path: 'BKASH_PAYMENT_NUMBER' },
+      { enabled: value.NAGAD_PAYMENT_ENABLED, number: value.NAGAD_PAYMENT_NUMBER, method: 'nagad' as const, path: 'NAGAD_PAYMENT_NUMBER' },
+      { enabled: value.ROCKET_PAYMENT_ENABLED, number: value.ROCKET_PAYMENT_NUMBER, method: 'rocket' as const, path: 'ROCKET_PAYMENT_NUMBER' },
+    ];
+    for (const account of receivingAccounts) {
+      if (!account.enabled) {
+        continue;
+      }
+      if (normalizeReceivingAccount(account.method, account.number) === null) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [account.path],
+          message: `${account.path} must be a valid Bangladeshi receiving account when the provider is enabled`,
+        });
+      }
+    }
+
     if (value.NODE_ENV !== 'production') {
       return;
     }
